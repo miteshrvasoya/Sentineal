@@ -14,8 +14,10 @@ from app.api.schemas import Bar, PricesResponse, QuoteResponse, SymbolOut, Watch
 from app.config import ROOT, get_settings
 from app.data import calendar as cal
 from app.data.db import get_session
+from app.data.ingest import backfill_many
 from app.data.models import ProviderHealth, WatchlistItem
 from app.data.prices import apply_adjustment, ensure_prices, load_prices
+from app.data.quality import quality_report
 from app.deps import get_router
 from app.providers.base import INTERVALS, ProviderError, ProviderRouter
 
@@ -166,3 +168,20 @@ async def get_quote(symbol: str, r: ProviderRouter = Depends(get_router)) -> Quo
     except ProviderError as e:
         raise HTTPException(502, detail=f"quote unavailable: {e}") from e
     return QuoteResponse(symbol=sym, source=src, **q)
+
+
+@router.get("/data-quality/{symbol}")
+def data_quality(symbol: str, interval: str = "1d", db: Session = Depends(get_session)) -> dict:
+    if interval not in INTERVALS:
+        raise HTTPException(422, f"interval must be one of {list(INTERVALS)}")
+    return {"symbol": _known(symbol), **quality_report(load_prices(db, _known(symbol), interval), interval)}
+
+
+@router.post("/ingest/backfill")
+async def ingest_backfill(symbols: list[str] | None = None, interval: str = "1d",
+                          db: Session = Depends(get_session), r: ProviderRouter = Depends(get_router)) -> list[dict]:
+    """Incremental backfill (default: the watchlist). Stores everything fetched."""
+    if interval not in INTERVALS:
+        raise HTTPException(422, f"interval must be one of {list(INTERVALS)}")
+    syms = [_known(s) for s in symbols] if symbols else get_watchlist(db)
+    return await backfill_many(db, r, syms, interval)

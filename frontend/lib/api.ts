@@ -12,6 +12,14 @@ export type Health = {
   market: { state: "open" | "closed" | "pre-open"; now_ist: string; next_change_ist: string; holidays_known: boolean };
 };
 
+export type ProviderStatus = {
+  name: string; configured: boolean; rate_limit: string; last_success: number | null;
+  last_error: number | null; last_error_msg: string; calls_today: number;
+};
+export type QualityIssue = { severity: "error" | "warn" | "info"; kind: string; detail: string; dates?: string[] };
+export type Quality = { symbol: string; interval: string; bars: number; first?: string; last?: string; sources?: string[];
+  checks: Record<string, number>; issues: QualityIssue[]; ok?: boolean };
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -35,6 +43,8 @@ export const api = {
   quote: (symbol: string) => get<Quote>(`/quote/${encodeURIComponent(symbol)}`),
   search: (q: string) => get<SymbolOut[]>(`/symbols/search?q=${encodeURIComponent(q)}`),
   watchlist: () => get<string[]>("/watchlist"),
+  providers: () => get<ProviderStatus[]>("/providers/health"),
+  quality: (symbol: string, interval = "1d") => get<Quality>(`/data-quality/${encodeURIComponent(symbol)}?interval=${interval}`),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),

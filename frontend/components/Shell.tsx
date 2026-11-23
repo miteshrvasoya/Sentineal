@@ -11,6 +11,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <header className="flex flex-wrap items-center gap-4 border-b border-slate-200 px-4 py-2 dark:border-slate-800">
         <Link href="/" className="text-lg font-bold">Quant<span className="text-indigo-500">Lens</span></Link>
         <SearchBox />
+        <Link href="/settings" className="text-sm text-slate-500 hover:underline">Data health</Link>
         <MarketBar />
         <ThemeToggle />
       </header>

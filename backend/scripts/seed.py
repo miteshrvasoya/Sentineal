@@ -7,21 +7,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import get_settings  # noqa: E402
 from app.data import db  # noqa: E402
-from app.data.prices import ensure_prices  # noqa: E402
+from app.data.ingest import backfill_many  # noqa: E402
 from app.deps import get_router  # noqa: E402
-from app.providers.base import ProviderError  # noqa: E402
 
 
 async def main() -> None:
     db.init_engine()
     s = next(db.get_session())
-    router = get_router()
-    for sym in get_settings().watchlist + ["NIFTY 50", "INDIA VIX"]:
-        try:
-            res = await ensure_prices(s, router, sym, "1d", force=True)
-            print(f"{sym}: {len(res.df) if res else 0} bars from {res.source if res else 'cache'}")
-        except ProviderError as e:
-            print(f"{sym}: FAILED {e}")
+    for r in await backfill_many(s, get_router(), get_settings().watchlist + ["NIFTY 50", "INDIA VIX"], "1d"):
+        print(r)
 
 
 asyncio.run(main())

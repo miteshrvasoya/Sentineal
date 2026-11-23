@@ -11,6 +11,8 @@ Personal, educational stock **analysis** platform for NSE/BSE. Not investment ad
 - Symbols: bare NSE symbols (`RELIANCE`). Index aliases: `NIFTY 50`, `NIFTY BANK`, `INDIA VIX`. Yahoo mapping lives in the Yahoo provider.
 - Frontend: Next.js (App Router, TS), Tailwind, TanStack Query, lightweight-charts. Plotly arrives with the analytical pages.
 - Tests never make live network calls.
+- Angel One uses the documented SmartAPI REST endpoints directly over `httpx` (async, mockable) instead of the sync `smartapi-python` SDK. Login/candle endpoints, field names and the index tokens are from memory of the public docs and are **unverified against the live API** (no credentials here). Websocket live ticks are deferred.
+- Angel One candles are raw (unadjusted): `adj_close == close`. Mixing sources in one series is flagged by the data-quality report (`mixed_sources`).
 
 ## Architecture
 ```
@@ -27,7 +29,7 @@ Later phases add: articles, article_scores, features, model_registry, jobs, back
 
 ## Phase checklist
 - [x] 1. Scaffold, config, DB, provider abstraction, rate limiter, Yahoo provider, calendar, price API, candlestick page
-- [ ] 2. Angel One provider, instrument master, backfill, data-quality report
+- [x] 2. Angel One provider, instrument master, backfill, data-quality report
 - [ ] 3. Indicator/feature library + tests, overlay UI
 - [ ] 4. Market structure, volume profile, Fibonacci, pivots, S/R, patterns with edge stats
 - [ ] 5. News providers, dedupe, ticker resolution, FinBERT, sentiment aggregates, page
