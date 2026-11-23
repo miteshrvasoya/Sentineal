@@ -19,6 +19,7 @@ from app.data.models import ProviderHealth, WatchlistItem
 from app.data.prices import apply_adjustment, ensure_prices, load_prices
 from app.data.quality import quality_report
 from app.deps import get_router
+from app.features.pipeline import FEATURE_VERSION, SETS, compute_features, feature_hash, to_frame
 from app.providers.base import INTERVALS, ProviderError, ProviderRouter
 
 router = APIRouter()
@@ -185,3 +186,42 @@ async def ingest_backfill(symbols: list[str] | None = None, interval: str = "1d"
         raise HTTPException(422, f"interval must be one of {list(INTERVALS)}")
     syms = [_known(s) for s in symbols] if symbols else get_watchlist(db)
     return await backfill_many(db, r, syms, interval)
+
+
+@router.get("/indicators/{symbol}")
+def indicators(
+    symbol: str, set: str = "trend,momentum,volatility,volume", interval: str = "1d",
+    adjusted: bool = True, limit: int = Query(500, ge=1, le=MAX_BARS),
+    params: str | None = Query(None, description='JSON, e.g. {"momentum":{"rsi_period":21}}'),
+    db: Session = Depends(get_session),
+) -> dict:
+    """Indicator series aligned to bar times `t` (last `limit` bars) plus latest values."""
+    import json
+    if interval not in INTERVALS:
+        raise HTTPException(422, f"interval must be one of {list(INTERVALS)}")
+    names = [x.strip() for x in set.split(",") if x.strip()]
+    bad = [n for n in names if n not in SETS]
+    if bad:
+        raise HTTPException(422, f"unknown set(s) {bad}; available {list(SETS)}")
+    try:
+        p = json.loads(params) if params else {}
+    except ValueError as e:
+        raise HTTPException(422, f"params is not valid JSON: {e}") from e
+    sym = _known(symbol)
+    prices = load_prices(db, sym, interval)
+    if prices.empty:
+        raise HTTPException(404, f"no stored prices for {sym}; fetch /prices/{sym} first")
+    if adjusted:
+        prices = apply_adjustment(prices)
+    try:
+        feats = compute_features(to_frame(prices), names, p)
+    except TypeError as e:
+        raise HTTPException(422, f"bad params: {e}") from e
+    feats = feats.iloc[-limit:]
+    cols = {c: [None if v != v else round(float(v), 6) for v in feats[c]] for c in feats.columns}
+    last = feats.iloc[-1]
+    return {"symbol": sym, "interval": interval, "version": FEATURE_VERSION,
+            "feature_hash": feature_hash(list(feats.columns), names),
+            "t": [int(x.timestamp()) for x in feats.index],
+            "latest": {c: (None if last[c] != last[c] else round(float(last[c]), 6)) for c in feats.columns},
+            "series": cols}

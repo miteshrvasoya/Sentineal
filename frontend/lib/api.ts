@@ -20,6 +20,11 @@ export type QualityIssue = { severity: "error" | "warn" | "info"; kind: string; 
 export type Quality = { symbol: string; interval: string; bars: number; first?: string; last?: string; sources?: string[];
   checks: Record<string, number>; issues: QualityIssue[]; ok?: boolean };
 
+export type Indicators = {
+  symbol: string; interval: string; version: string; feature_hash: string;
+  t: number[]; latest: Record<string, number | null>; series: Record<string, (number | null)[]>;
+};
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -45,6 +50,8 @@ export const api = {
   watchlist: () => get<string[]>("/watchlist"),
   providers: () => get<ProviderStatus[]>("/providers/health"),
   quality: (symbol: string, interval = "1d") => get<Quality>(`/data-quality/${encodeURIComponent(symbol)}?interval=${interval}`),
+  indicators: (symbol: string, interval: string, adjusted: boolean, sets: string[], limit: number) =>
+    get<Indicators>(`/indicators/${encodeURIComponent(symbol)}?set=${sets.join(",")}&interval=${interval}&adjusted=${adjusted}&limit=${limit}`),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),

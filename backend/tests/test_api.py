@@ -61,3 +61,18 @@ def test_quote_and_search_and_watchlist(client):
 def test_providers_health_shape(client):
     r = client.get("/providers/health").json()
     assert r[0]["name"] == "fake" and "calls_today" in r[0]
+
+
+def test_indicators_endpoint(client):
+    from app.data.db import get_session
+    from app.data.prices import upsert_prices
+    from tests.conftest import make_frame
+    upsert_prices(next(get_session()), "TCS", "1d", make_frame(300), "fake")
+    j = client.get("/indicators/tcs?set=momentum,trend&limit=50").json()
+    assert len(j["t"]) == 50 and len(j["series"]["rsi"]) == 50 and 0 <= j["latest"]["rsi"] <= 100
+    assert "feature_hash" in j and "macd" in j["series"]
+    j2 = client.get('/indicators/tcs?set=momentum&params={"momentum":{"rsi_period":7}}').json()
+    assert j2["latest"]["rsi"] != j["latest"]["rsi"]
+    assert client.get("/indicators/tcs?set=nope").status_code == 422
+    assert client.get("/indicators/tcs?params=%7Bbad").status_code == 422
+    assert client.get("/indicators/ZZZ").status_code == 404

@@ -17,6 +17,7 @@ dependencies = [
   "python-dotenv>=1.0",
   "tzdata",
   "pyotp>=2.12.1",
+  "scipy>=1.17.1",
 ]
 
 [dependency-groups]
