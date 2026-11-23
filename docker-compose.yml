@@ -1,0 +1,14 @@
+# Ports are bound to localhost only. Backend reads secrets from .env.
+services:
+  backend:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    env_file: [{ path: .env, required: false }]
+    environment:
+      DATABASE_URL: sqlite:////data/quantlens.db
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    volumes: ["./data:/data"]
+    ports: ["127.0.0.1:8000:8000"]
+  frontend:
+    build: { context: ., dockerfile: frontend/Dockerfile }
+    depends_on: [backend]
+    ports: ["127.0.0.1:3000:3000"]

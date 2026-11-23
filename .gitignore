@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.db
+data/cache/*
+!data/cache/.gitkeep
+models/
+node_modules/
+.next/
+frontend/tsconfig.tsbuildinfo
+*.db-shm
+*.db-wal
