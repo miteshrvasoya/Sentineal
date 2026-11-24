@@ -131,3 +131,76 @@ def test_news_and_sentiment_endpoints(client):
     assert m["model"] == "vader" and m["series"]
     app.dependency_overrides.pop(get_news_router, None)
     factory.set_scorer(None)
+
+
+def _llm_setup(client, provider_cfg):
+    """Seed a few stored articles and point the app at a scripted LLM router."""
+    import time
+
+    from app.data.db import get_session
+    from app.data.news_ingest import score_pending, store_articles
+    from app.deps import get_llm_router
+    from app.main import app
+    from app.nlp.entities import AliasResolver
+    from app.nlp.vader import VaderScorer
+    from app.providers.base import RawArticle
+    from tests.llm.fakes import make_router
+
+    db = next(get_session())
+    now = int(time.time())
+    arts = [RawArticle(url=f"https://n.com/{i}", title=t, published=now - 86400 * i, provider="t")
+            for i, t in enumerate(["Reliance Industries posts record profit, shares surge", "Reliance Industries faces fraud probe, shares plunge",
+                                   "Reliance Industries AGM date announced"])]
+    store_articles(db, arts, AliasResolver(), "RELIANCE")
+    score_pending(db, VaderScorer())
+    router = make_router({"a": provider_cfg})
+    app.dependency_overrides[get_llm_router] = lambda: router
+    return router
+
+
+def test_llm_endpoints_degrade_gracefully_with_no_provider(client):
+    from app.deps import get_llm_router
+    from app.main import app
+    from tests.llm.fakes import Scripted
+    _llm_setup(client, Scripted("a", configured=False))
+    st = client.get("/llm/status").json()
+    assert st["available"] is False and st["budget"]["token_budget"] > 0 and "AI-generated" in st["badge"]
+    e = client.post("/llm/enrich/RELIANCE").json()
+    assert e["available"] is False and "API key" in e["reason"]
+    n = client.get("/news/RELIANCE/enriched").json()
+    assert n["llm_available"] is False and n["count"] == 3 and n["articles"][0]["event_type"] is None and n["agreement"]["n"] == 0
+    assert client.get("/llm/eval").status_code == 503
+    assert client.get("/llm/usage").json()["today"]["tokens"] == 0
+    app.dependency_overrides.pop(get_llm_router, None)
+
+
+def test_llm_enrich_then_enriched_view_with_forward_only_flag(client):
+    from app.data.models import ArticleEnrichment
+    from app.deps import get_llm_router
+    from app.main import app
+    from tests.llm.fakes import Scripted, enrich_items, sent_items
+
+    def responder(kw):
+        return sent_items(kw["user"], 0.6) if "financial sentiment" in kw["system"] else enrich_items(kw["user"], materiality="high")
+    _llm_setup(client, Scripted("a", responder=responder))
+    r = client.post("/llm/enrich/RELIANCE").json()
+    assert r["available"] and r["enrichment"]["processed"] == 3 and r["sentiment"]["scored"] == 3
+    n = client.get("/news/RELIANCE/enriched?min_materiality=high").json()
+    assert n["count"] == 3 and n["agreement"]["n"] == 3 and n["forward_start"] is not None
+    a = n["articles"][0]
+    assert a["event_type"] == "earnings" and a["materiality"] == "high" and a["llm_label"] == "positive" and a["summary"]
+    # Articles published before LLM collection began are flagged not valid for backtesting.
+    flags = {x["id"]: x["valid_for_backtest"] for x in n["articles"]}
+    assert not all(flags.values())
+    st = client.get("/llm/status").json()
+    assert st["available"] and st["forward_start"] == n["forward_start"] and st["budget"]["tokens"] > 0
+    usage = client.get("/llm/usage").json()
+    assert usage["rows"] and {x["task"] for x in usage["rows"]} == {"news_enrich", "sentiment_llm"}
+    # Hard budget: once exhausted the endpoint reports it instead of failing.
+    app.dependency_overrides.pop(get_llm_router, None)
+    assert db_has(ArticleEnrichment, 3)
+
+
+def db_has(model, n):
+    from app.data.db import get_session
+    return len(next(get_session()).query(model).all()) == n

@@ -73,3 +73,49 @@ class ArticleScore(Base):
     neu: Mapped[float] = mapped_column(Float)
     score: Mapped[float] = mapped_column(Float)                           # pos - neg, in [-1, 1]
     scored_at: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class LLMUsage(Base):
+    """One row per LLM attempt (including cache hits and failures) for spend tracking and the usage chart."""
+    __tablename__ = "llm_usage"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ts: Mapped[int] = mapped_column(BigInteger, index=True)
+    day: Mapped[str] = mapped_column(String(10), index=True)             # IST date
+    task: Mapped[str] = mapped_column(String(48))
+    provider: Mapped[str] = mapped_column(String(24), default="")
+    model: Mapped[str] = mapped_column(String(64), default="")
+    tokens_in: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_out: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)          # ESTIMATE from config pricing
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    cached: Mapped[int] = mapped_column(Integer, default=0)
+    ok: Mapped[int] = mapped_column(Integer, default=1)
+    error: Mapped[str] = mapped_column(String(200), default="")
+
+
+class LLMCache(Base):
+    """key = sha256(task | prompt id+version | model | content hash)."""
+    __tablename__ = "llm_cache"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    payload: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String(64))
+    created: Mapped[int] = mapped_column(BigInteger)
+
+
+class ArticleEnrichment(Base):
+    """LLM understanding of one article. `generated_at` matters: see the look-ahead warning in the guide."""
+    __tablename__ = "article_enrichment"
+    article_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    prompt_id: Mapped[str] = mapped_column(String(32))
+    prompt_version: Mapped[int] = mapped_column(Integer)
+    provider: Mapped[str] = mapped_column(String(24))
+    model: Mapped[str] = mapped_column(String(64))
+    generated_at: Mapped[int] = mapped_column(BigInteger, index=True)
+    tickers: Mapped[str] = mapped_column(Text, default="[]")             # JSON list
+    event_type: Mapped[str] = mapped_column(String(24))
+    direction: Mapped[str] = mapped_column(String(12))
+    materiality: Mapped[str] = mapped_column(String(8))
+    horizon: Mapped[str] = mapped_column(String(12))
+    is_new_information: Mapped[int] = mapped_column(Integer, default=1)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    flags: Mapped[str] = mapped_column(Text, default="[]")               # JSON list: injection_suspected, summary_removed...

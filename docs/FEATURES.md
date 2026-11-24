@@ -63,3 +63,15 @@ Not yet implemented: GARCH vol, India VIX features, volume profile, delivery %, 
 **Lead/lag.** corr(sentiment_t, return_{t+lag}) for lags -5..+5 with Bonferroni-corrected p-values and a 30-day minimum. Expect most stocks to show nothing significant; sentiment is often a reaction to price.
 
 Not yet built: earnings-date proximity (needs a results calendar, Phase 6) and social sentiment (optional, skipped).
+
+
+## Phase 5A: LLM layer (`backend/app/llm/`)
+
+See the in-app Guide (`/guide`, source `frontend/content/GUIDE.md`) for the full walkthrough. Summary:
+
+- `base.py` provider interface + JSON validation with one repair retry; `providers/` Anthropic, Gemini, OpenAI, OpenAI-compatible (Groq, Ollama).
+- `router.py` task routing from `config/llm.yaml` with fallback, cache (`cache.py`), budget hard stop and usage table (`usage.py`), guardrail regeneration.
+- `guardrails.py` prompt-injection fencing and flags, no-advice post-check, number validator. `prompts/*.v1.md` versioned prompts. `context.py` context packs.
+- `tasks/news_enrich.py` (event type, direction, materiality, horizon, new-vs-rehash, summary, tickers) and `tasks/sentiment_llm.py` (second opinion stored as model `llm:<model>`).
+- `eval.py` + `data/llm_eval/headlines.jsonl`: accuracy, agreement, JSON validity, hallucinated-number and advice rates per provider/prompt version.
+- Forward-only rule: LLM output on articles published before collection began is `valid_for_backtest = false`.

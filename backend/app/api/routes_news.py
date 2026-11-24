@@ -39,7 +39,8 @@ def clean(v: object) -> object:
 
 def pick_model(db: Session) -> str | None:
     """One scoring model per series (scales differ). Prefer FinBERT, then whichever has most scores."""
-    counts = dict(db.execute(select(ArticleScore.model, func.count()).group_by(ArticleScore.model)).all())
+    counts = {m: n for m, n in db.execute(select(ArticleScore.model, func.count()).group_by(ArticleScore.model)).all()
+              if not m.startswith("llm:")}      # LLM scores are a second opinion, never the default series
     if not counts:
         return None
     return "finbert" if counts.get("finbert") else max(counts, key=counts.__getitem__)

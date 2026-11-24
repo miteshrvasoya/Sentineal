@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     alphavantage_key: str = Field(default="", repr=False)
     newsapi_key: str = Field(default="", repr=False)
 
+    anthropic_api_key: str = Field(default="", repr=False)
+    gemini_api_key: str = Field(default="", repr=False)
+    openai_api_key: str = Field(default="", repr=False)
+    groq_api_key: str = Field(default="", repr=False)
+    ollama_base_url: str = ""
+    llm_default_provider: str = ""
+    llm_daily_token_budget: int = 200_000
+    llm_daily_usd_budget: float = 1.0
+    llm_enable_forward_only_features: bool = True
+
     @property
     def watchlist(self) -> list[str]:
         return [s.strip().upper() for s in self.default_watchlist.split(",") if s.strip()]

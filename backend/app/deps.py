@@ -44,3 +44,9 @@ def get_news_router():  # type: ignore[no-untyped-def]
         GoogleNewsRssProvider(), GdeltProvider(),
         AlphaVantageProvider(key=s.alphavantage_key), NewsApiProvider(key=s.newsapi_key),
     ], db_factory=_session_ctx)
+
+
+@lru_cache
+def get_llm_router():  # type: ignore[no-untyped-def]
+    from app.llm.router import build_router
+    return build_router(_session_ctx)

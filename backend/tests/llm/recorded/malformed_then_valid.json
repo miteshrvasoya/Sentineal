@@ -1,0 +1,3 @@
+{"note": "Recorded shape of a typical model slip: prose + fenced JSON, then a corrected reply.",
+ "first": "Sure! Here is the analysis:\n```json\n{\"items\": [{\"article_id\": \"X\", \"score\": 1.7, \"label\": \"positive\"}]}\n```",
+ "second": "{\"items\": [{\"article_id\": \"X\", \"score\": 0.7, \"label\": \"positive\"}]}"}

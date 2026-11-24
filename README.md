@@ -11,8 +11,11 @@ make test
 ```
 Copy `.env.example` to `.env` to add keys later. Without keys the app uses Yahoo Finance (unofficial, can break).
 
+## Guide
+Open **Guide** in the app's top bar (or read `docs/GUIDE.md`) for a plain-language tour of every feature, written for engineers who are not traders. Each new phase adds a section.
+
 ## Status
-Phase 1 done: provider abstraction (rate limiter, retry/backoff, fallback router, health), Yahoo provider, NSE calendar, price/quote/watchlist/search API, candlestick page. Later phases are tracked in `docs/PLAN.md`.
+Phases 1–5A done: data providers and fallback, Angel One, indicators, market structure and patterns, news and sentiment, and the optional LLM layer. Later phases are tracked in `docs/PLAN.md`.
 
 ## Known limits (Phase 1)
 - NSE holiday table covers 2025 and 2026 only and must be refreshed yearly.

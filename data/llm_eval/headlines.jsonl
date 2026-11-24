@@ -1,0 +1,30 @@
+{"headline": "Reliance Industries posts record quarterly profit, beats estimates", "label": "positive", "event_type": "earnings"}
+{"headline": "TCS wins multi-year deal worth billions from European bank", "label": "positive", "event_type": "order_win"}
+{"headline": "HDFC Bank net interest margin expands as loan growth accelerates", "label": "positive", "event_type": "earnings"}
+{"headline": "Infosys raises full-year revenue guidance after strong deal wins", "label": "positive", "event_type": "guidance"}
+{"headline": "Larsen & Toubro bags large infrastructure orders", "label": "positive", "event_type": "order_win"}
+{"headline": "Sun Pharma receives USFDA approval for new generic drug", "label": "positive", "event_type": "regulatory"}
+{"headline": "Bharti Airtel adds subscribers as average revenue per user rises", "label": "positive", "event_type": "earnings"}
+{"headline": "ITC cigarette volumes grow, FMCG margins improve", "label": "positive", "event_type": "earnings"}
+{"headline": "Maruti Suzuki reports highest ever monthly sales", "label": "positive", "event_type": "earnings"}
+{"headline": "Titan jewellery demand surges ahead of festive season", "label": "positive", "event_type": "sector"}
+{"headline": "SEBI orders probe into alleged accounting irregularities at the company", "label": "negative", "event_type": "regulatory"}
+{"headline": "Auditor resigns citing concerns over related-party transactions", "label": "negative", "event_type": "management_change"}
+{"headline": "Wipro cuts revenue guidance amid weak client spending", "label": "negative", "event_type": "guidance"}
+{"headline": "Tata Motors faces production halt after supplier disruption", "label": "negative", "event_type": "other"}
+{"headline": "Promoter sells significant stake in open market", "label": "negative", "event_type": "other"}
+{"headline": "Adani Enterprises hit by fresh short-seller allegations", "label": "negative", "event_type": "litigation"}
+{"headline": "ICICI Bank asset quality worsens as bad loans rise", "label": "negative", "event_type": "earnings"}
+{"headline": "Coal India output falls short of target as demand weakens", "label": "negative", "event_type": "earnings"}
+{"headline": "Bajaj Finance shares slump after regulator restricts lending products", "label": "negative", "event_type": "regulatory"}
+{"headline": "ONGC reports sharp drop in quarterly profit on lower realisations", "label": "negative", "event_type": "earnings"}
+{"headline": "Reliance Industries to hold annual general meeting next month", "label": "neutral", "event_type": "other"}
+{"headline": "TCS announces date of board meeting to consider quarterly results", "label": "neutral", "event_type": "other"}
+{"headline": "HDFC Bank appoints new independent director to its board", "label": "neutral", "event_type": "management_change"}
+{"headline": "Nifty ends flat as investors await central bank decision", "label": "neutral", "event_type": "macro"}
+{"headline": "Infosys files routine disclosure with the stock exchange", "label": "neutral", "event_type": "other"}
+{"headline": "Axis Bank to raise funds through bonds, board approval sought", "label": "neutral", "event_type": "other"}
+{"headline": "Auto sector sales data due on the first of the month", "label": "neutral", "event_type": "sector"}
+{"headline": "SBI announces change in registrar and transfer agent", "label": "neutral", "event_type": "other"}
+{"headline": "Markets mixed as banks gain and IT stocks decline", "label": "neutral", "event_type": "macro"}
+{"headline": "NTPC commissions new unit, adds to installed capacity", "label": "positive", "event_type": "other"}

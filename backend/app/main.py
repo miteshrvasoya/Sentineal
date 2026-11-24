@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import router
+from app.api.routes_llm import router as llm_router
 from app.api.routes_news import router as news_router
 from app.config import get_settings
 from app.data import db
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
 
     app.include_router(router)
     app.include_router(news_router)
+    app.include_router(llm_router)
     return app
 
 

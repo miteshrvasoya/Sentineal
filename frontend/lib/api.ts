@@ -60,6 +60,11 @@ export const api = {
   sentiment: (symbol: string, days: number) => get<SentimentResponse>(`/sentiment/${encodeURIComponent(symbol)}?days=${days}`),
   marketSentiment: (days: number) => get<MarketSentiment>(`/sentiment/market?days=${days}`),
   refreshNews: (symbol: string, days: number) => post<RefreshResult>(`/news/${encodeURIComponent(symbol)}/refresh?days=${days}`),
+  newsEnriched: (symbol: string, days: number, minMateriality = "low") =>
+    get<EnrichedResponse>(`/news/${encodeURIComponent(symbol)}/enriched?days=${days}&limit=200&min_materiality=${minMateriality}`),
+  llmStatus: () => get<LlmStatus>("/llm/status"),
+  llmUsage: () => get<LlmUsage>("/llm/usage?days=14"),
+  enrich: (symbol: string) => post<EnrichResult>(`/llm/enrich/${encodeURIComponent(symbol)}?limit=40`),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -111,3 +116,25 @@ async function post<T>(path: string): Promise<T> {
   if (!res.ok) throw new ApiError(res.status, res.statusText);
   return res.json() as Promise<T>;
 }
+
+export type Enriched = {
+  id: string; title: string; url: string; source: string; published: number;
+  ref_score: number | null; ref_label: string | null; llm_score: number | null; llm_label: string | null; llm_model: string | null;
+  event_type: string | null; direction: string | null; materiality: "low" | "medium" | "high" | null; horizon: string | null;
+  is_new_information: boolean | null; summary: string | null; flags: string[]; llm_generated_at: number | null; valid_for_backtest: boolean;
+};
+export type Agreement = { n: number; label_agreement: number | null; sign_agreement: number | null;
+  disagreements: { article_id: string; reference: number; llm: number; title: string }[] };
+export type EnrichedResponse = { symbol: string; reference_model: string | null; badge: string; llm_available: boolean;
+  forward_start: number | null; count: number; articles: Enriched[]; agreement: Agreement };
+export type LlmStatus = {
+  available: boolean; badge: string; forward_only: boolean; forward_start: number | null;
+  providers: Record<string, boolean>;
+  tasks: Record<string, { temperature: number; max_tokens: number; chain: { provider: string; model: string; configured: boolean }[] }>;
+  budget: { tokens: number; usd: number; token_budget: number; usd_budget: number; exhausted: boolean };
+};
+export type LlmUsage = { today: LlmStatus["budget"];
+  rows: { day: string; task: string; tokens_in: number; tokens_out: number; usd: number; calls: number; cache_hits: number; failures: number }[] };
+export type EnrichResult = { available: boolean; reason?: string; badge: string;
+  enrichment?: { processed: number; flagged: number; summaries_removed: number; failed_batches: number; stopped: string | null; model: string | null };
+  sentiment?: { scored: number; failed_batches: number; stopped: string | null; model: string | null } };
