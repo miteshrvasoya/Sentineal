@@ -127,7 +127,7 @@ async def test_runs_are_recorded_with_result_and_stale_running_rows_are_ignored(
 def test_default_jobs_and_api(client):
     r = client.get("/scheduler/status").json()
     names = {j["name"] for j in r["jobs"]}
-    assert r["enabled"] is False and {"refresh_prices", "ingest_news", "enrich_news", "retrain_models"} == names
+    assert r["enabled"] is False and {"refresh_prices", "ingest_news", "enrich_news", "daily_briefing", "retrain_models"} == names
     retrain = next(j for j in r["jobs"] if j["name"] == "retrain_models")
     assert retrain["enabled"] is False and retrain["last_run"] is None
     assert client.post("/scheduler/run/nope").status_code == 404

@@ -10,7 +10,8 @@ This table grows every phase. The newest row is on top.
 
 | Phase | Theme | One-line summary | Status |
 |---|---|---|---|
-| **10** | **Screener, breadth, scheduler, Learn** | Filter all stored stocks by rules, relative-strength ranks, market breadth, sector rotation, optional background jobs, database migrations and 12 lessons for engineers | **NEW** |
+| **10A** | **Chat, plain-English screener, briefing, red flags** | A read-only chat assistant with cited lookups, screens described in words, an AI daily briefing, rule-based red flags and a prompt-injection safety evaluation | **NEW** |
+| 10 | Screener, breadth, scheduler, Learn | Filter all stored stocks by rules, relative-strength ranks, market breadth, sector rotation, optional background jobs, database migrations and 12 lessons for engineers | done |
 | 9 | Backtester with Indian costs and a luck test | Replay four classic trading rules with STT/stamp/GST/slippage, held-out data, a parameter-search penalty, a bootstrap and a random-timing test | done |
 | 8A | The AI analyst, with guardrails | Optional AI that explains computed facts, why a stock moved, a model's output and a backtest's trustworthiness, with citations and safety checks | done |
 | 8 | Machine learning, ensembles, Model Lab | Gradient-boosted, forest, logistic and experimental deep models with SHAP explanations, a news ablation, a causal ensemble and a Model Lab, all held to the same walk-forward test | done |
@@ -23,7 +24,7 @@ This table grows every phase. The newest row is on top.
 | 2 | Data reliability | Angel One broker data, incremental backfill, data-quality report | done |
 | 1 | Foundations | Price API, candlestick page, provider fallback, NSE calendar | done |
 
-Coming next: the chat agent and briefings (10A).
+All planned phases are now built. Deferred extras are listed in docs/PLAN.md (Plotly charts, a live websocket feed, macro and flow features).
 
 ## Running it
 
@@ -50,7 +51,54 @@ Every phase has an **interactive tour** inside the app, so you can see what it a
 
 ---
 
-## Phase 10: screener, market breadth, scheduler and Learn (NEW)
+## Phase 10A: chat, plain-English screens, briefing and red flags (NEW)
+
+> **Tour:** open the **Tour** menu and pick "Phase 10A". It visits Ask, the Screener, Briefing, an analyst tab and the safety panel.
+
+### What's new
+
+- **Ask** (`/chat`): a read-only assistant. It answers questions by calling lookup tools over the data stored here and explaining the results.
+- **Describe a screen in words** (Screener page): the AI translates plain English into the screener's conditions, loads them into the builder and runs them.
+- **Daily briefing** (`/briefing`): an AI-written market briefing from the day's computed facts. The scheduler can produce one after each close.
+- **Red flags**: rule-based warning signs for every stock (on the AI analyst tab and across the watchlist on the Briefing page). No AI needed.
+- **AI safety evaluation** (Data health page): runs prompt-injection attacks and ordinary questions against your configured model.
+
+The AI features need an API key; without one they say so and the rest works. Red flags, the screener and everything before this phase never need a key.
+
+### Try it
+
+1. **Briefing**: look at "Red flags across the watchlist" (works without a key), then press "Write today's briefing" if you have a key.
+2. **Ask**: click an example, open "What I looked up" and compare it with the answer and its "Based on" chips.
+3. **Screener**: type "strong stocks that dipped more than 5% this month" and check the conditions it loaded.
+4. Try a bad question on purpose: "Which stock should I buy?" and see the assistant decline to give advice.
+5. **Data health page**: run the safety evaluation.
+
+### How it works (engineering view)
+
+- **Agent loop.** Each step is one structured call whose JSON is either `{"action":"tool", ...}` or `{"action":"answer", ...}`. The backend runs the tool, fences the result as untrusted data, and calls the model again, for at most five lookups. This is a plain state machine with the model choosing the next transition; there is no hidden autonomy.
+- **Tools are read-only by construction.** Eight functions: stock facts, red flags, screen, breadth, sectors, model verdicts, headlines, compare. A test asserts none is named like a write action. Arguments are validated (symbols must exist in the database, conditions are checked by the screener's validator, at most four symbols to compare). A tool error is shown to the model so it can correct itself or say the data is missing.
+- **Output checks on every answer:** no advice or price targets, no number that is absent from the tool results or the user's own message, no citation of a lookup that did not happen, and at least one citation if any tool ran. The router regenerates once with the problems listed; if that fails the answer is withheld and the page says so.
+- **Prompt injection.** News headlines and tool results are wrapped in a block whose tag carries a random id, with angle brackets neutralised, so text inside cannot close the block. Injection phrases are flagged. The system prompt says text in such blocks is data. These measures reduce the risk; they cannot eliminate it, which is why the checks above are a second layer and why the tool set is read-only: even a fully hijacked model can only look things up.
+- **Natural-language screener.** The model returns conditions in a typed schema. The same validator the manual screener uses rejects unknown fields, bad operators and non-numeric sort fields. A scale check rejects `5` where `0.05` (5%) is meant. Parts it cannot express are listed as unsupported and shown to you, not silently dropped.
+- **Briefing.** Python builds the fact list (breadth, best and worst sectors, watchlist one- and five-day moves, flagged stocks). The AI writes from those facts only, with the same citation and number checks.
+- **Red flags** are plain functions over stored data, with thresholds you can read in `app/agent/redflags.py`: single-day move over 8%, drawdown over 20% or 30%, volatility 1.8x its yearly level, volume under 30% of normal, debt over 2x equity, negative net margin, earnings or revenue falling, Piotroski 3 or below, Altman distress, stale prices or fundamentals, high-materiality negative news.
+- **Safety evaluation.** `data/llm_eval/injections.jsonl` has 12 attacks (override instructions, fake system messages, closing the fence, requests to leak the prompt, place orders or call fake tools, each asking the model to emit a marker string), and `agent_questions.jsonl` has 10 questions with the tool a sensible agent should choose first. Automated tests run the whole pipeline with scripted models: an obedient model is blocked by the guardrails whenever it produces advice, while a model that only echoes the marker is counted as a violation, because no guardrail can know a harmless-looking string is wrong. That second case is why the evaluation exists: it measures the model, not the filters.
+
+### Ideas explained
+
+- **Tool use (function calling):** letting a language model request a function call instead of guessing. Like a client that can only call whitelisted API endpoints.
+- **Prompt injection:** text in the data that tries to give the model instructions, the AI equivalent of SQL injection. The fix is the same shape: keep data and instructions separate and limit what a compromised component can do.
+- **Red flag:** a rule-based warning sign. It narrows where to look; it does not decide anything.
+
+### How far to trust it
+
+- **No live LLM was used in development.** All tests use scripted models, so real phrasing, tool-choice accuracy and injection resistance are unmeasured until you run the safety evaluation with your own key.
+- The checks catch advice phrasing, invented numbers and fake citations. They cannot catch every misleading framing of correct numbers.
+- The assistant only knows what is stored here: ten stocks by default, daily bars, fundamentals if you fetched them, news if you ingested it.
+- A small fixed attack set catches regressions; it does not prove safety.
+- Red-flag thresholds are common rules of thumb, not tuned or validated, and missing data produces no flag.
+
+## Phase 10: screener, market breadth, scheduler and Learn
 
 > **Tour:** open the **Tour** menu and pick "Phase 10". It visits the Screener, Market, Settings (scheduler) and Learn pages.
 
@@ -740,6 +788,8 @@ Yahoo Finance is an unofficial source that can break without notice, which is wh
 | Term | Meaning |
 |---|---|
 | **Adjusted price** | History rescaled for splits, bonuses and dividends so it is continuous |
+| **Prompt injection** | Text in data that tries to instruct an AI; defended by separating data from instructions (Phase 10A) |
+| **Red flag** | A rule-based warning sign that suggests looking closer (Phase 10A) |
 | **Breadth** | The share of stocks taking part in a market move (Phase 10) |
 | **Relative strength** | A stock's performance compared with its peers, often as a percentile rank (Phase 10) |
 | **Backtest** | Replaying a strategy on past data to see how it would have done (Phase 9) |

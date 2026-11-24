@@ -122,7 +122,13 @@ def _model_facts(db: Session, symbol: str, horizon: int) -> dict[str, Any] | Non
 
 
 def pack_numbers(pack: dict[str, Any]) -> list[float]:
-    return [float(v) for v in pack["facts"].values() if isinstance(v, int | float) and not isinstance(v, bool)]
+    """Every number the AI may quote: numeric facts, plus numbers written inside short text facts (e.g. a flag message)."""
+    from app.llm.guardrails import extract_numbers
+    out = [float(v) for v in pack["facts"].values() if isinstance(v, int | float) and not isinstance(v, bool)]
+    for v in pack["facts"].values():
+        if isinstance(v, str):
+            out += [n for n, _, _ in extract_numbers(v)]
+    return out
 
 
 def pack_block(pack: dict[str, Any]) -> str:

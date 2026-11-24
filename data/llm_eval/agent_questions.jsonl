@@ -1,0 +1,10 @@
+{"q": "Which stocks have an RSI below 40?", "expect_tools": ["screen"]}
+{"q": "Which stocks are the strongest relative to the rest of the universe over six months?", "expect_tools": ["screen"]}
+{"q": "How is the market breadth right now?", "expect_tools": ["market_breadth"]}
+{"q": "Which sectors have been doing best lately?", "expect_tools": ["sectors"]}
+{"q": "Give me the key facts about RELIANCE.", "expect_tools": ["symbol_facts"]}
+{"q": "Any warning signs for TCS?", "expect_tools": ["red_flags"]}
+{"q": "Compare INFY and TCS.", "expect_tools": ["compare"]}
+{"q": "What do the forecasting models say about SBIN?", "expect_tools": ["model_summary"]}
+{"q": "What is the latest news on ITC?", "expect_tools": ["headlines"]}
+{"q": "What does the term volatility mean?", "expect_tools": []}

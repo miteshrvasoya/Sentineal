@@ -2,7 +2,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Suspense, useState } from "react";
-import { api, type ScreenCond, type ScreenField, type ScreenRow } from "@/lib/api";
+import { api, type ScreenResult, type ScreenCond, type ScreenField, type ScreenRow } from "@/lib/api";
 
 const card = "rounded border border-slate-200 p-3 dark:border-slate-800";
 const input = "rounded border border-slate-300 bg-white px-1 py-0.5 text-sm dark:border-slate-700 dark:bg-slate-900";
@@ -37,7 +37,13 @@ function View() {
     // percentage-type fields are shown as percent in the UI but stored as fractions
     return { field: d.field, op: d.op, value: Number(d.value) / (f?.unit === "pct" ? 100 : 1) };
   };
-  const run = useMutation({ mutationFn: (c: Draft[]) => api.screenRun(c.map(toApi), sort, desc) });
+  const [res, setRes] = useState<ScreenResult | null>(null);
+  const run = useMutation({ mutationFn: (c: Draft[]) => api.screenRun(c.map(toApi), sort, desc), onSuccess: setRes });
+  const [nl, setNl] = useState("");
+  const nlm = useMutation({
+    mutationFn: () => api.nlScreen(nl),
+    onSuccess: (o) => { if (o.result) setRes(o.result); if (o.screen) { setConds(o.screen.conditions.map(fromApi)); setSort(o.screen.sort); setDesc(o.screen.desc); } },
+  });
   const fromApi = (c: ScreenCond): Draft => {
     const f = fmap.get(c.field);
     const v = c.value;
@@ -55,6 +61,19 @@ function View() {
         <div className="flex flex-wrap gap-2">{meta.data?.presets.map((p) => (
           <button key={p.id} title={p.idea} onClick={() => { const d = p.conditions.map(fromApi); setConds(d); run.mutate(d); }}
             className="rounded border border-slate-300 px-2 py-1 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800">{p.title}</button>))}</div>
+      </section>
+      <section className={card} data-tour="screen-nl">
+        <div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">Describe it in words</h2><span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] text-white">AI-generated</span></div>
+        <form onSubmit={(e) => { e.preventDefault(); if (nl.trim()) nlm.mutate(); }} className="mt-1 flex gap-2">
+          <input value={nl} onChange={(e) => setNl(e.target.value)} maxLength={400} aria-label="Describe the screen" placeholder="e.g. strong stocks that dipped more than 5% this month, in IT or banks" className={`${input} flex-1`} />
+          <button disabled={nlm.isPending || !nl.trim()} className="rounded bg-indigo-600 px-3 py-1 text-sm text-white disabled:opacity-50">{nlm.isPending ? "Translating…" : "Translate and run"}</button></form>
+        {nlm.error && <p className="mt-1 text-sm text-red-600" role="alert">{(nlm.error as Error).message}</p>}
+        {nlm.data && !nlm.data.available && <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{nlm.data.reason}</p>}
+        {nlm.data?.error && <p className="mt-1 text-sm text-amber-700">{nlm.data.error}</p>}
+        {nlm.data?.withheld && <p className="mt-1 text-sm text-amber-700">The translation broke a rule even after a retry ({nlm.data.problems?.join("; ")}). Build the screen by hand below.</p>}
+        {nlm.data?.screen && <div className="mt-1 text-sm"><p>{nlm.data.screen.explanation}</p>
+          {nlm.data.screen.unsupported.length > 0 && <p className="text-amber-700 dark:text-amber-400">Could not express: {nlm.data.screen.unsupported.join(", ")}. This part is NOT in the screen.</p>}
+          <p className="text-xs text-slate-500">The conditions it produced are loaded into the builder below so you can check and edit them. The screen result is shown under it.</p></div>}
       </section>
       <section className={card} data-tour="screen-builder">
         <h2 className="mb-1 text-sm font-semibold">Conditions (all must be true)</h2>
@@ -80,15 +99,15 @@ function View() {
         </div>
         {run.error && <p className="mt-2 text-sm text-red-600" role="alert">{(run.error as Error).message}</p>}
       </section>
-      {run.data && (
+      {res && (
         <section className={card} data-tour="screen-results">
-          <h2 className="text-lg font-semibold">{run.data.matches} of {run.data.universe} stocks match</h2>
-          {Object.keys(run.data.missing_data).length > 0 && <p className="text-xs text-amber-600">Stocks lacking data for a condition never match it: {Object.entries(run.data.missing_data).map(([k, v]) => `${fmap.get(k)?.label ?? k} (${v} missing)`).join(", ")}.</p>}
+          <h2 className="text-lg font-semibold">{res.matches} of {res.universe} stocks match</h2>
+          {Object.keys(res.missing_data).length > 0 && <p className="text-xs text-amber-600">Stocks lacking data for a condition never match it: {Object.entries(res.missing_data).map(([k, v]) => `${fmap.get(k)?.label ?? k} (${v} missing)`).join(", ")}.</p>}
           <div className="mt-1 overflow-x-auto"><table className="w-full text-xs tabular-nums"><thead className="text-left text-slate-500"><tr><th>Stock</th><th>Sector</th>{cols.map((k) => <th key={k} title={fmap.get(k)?.desc}>{fmap.get(k)?.label}</th>)}</tr></thead>
-            <tbody>{run.data.rows.map((r: ScreenRow) => (
+            <tbody>{res.rows.map((r: ScreenRow) => (
               <tr key={r.symbol} className="border-t border-slate-200 dark:border-slate-800"><td className="py-1"><Link href={`/s/${r.symbol}`} className="font-medium text-indigo-600 hover:underline dark:text-indigo-300">{r.symbol}</Link></td><td>{r.sector}</td>
                 {cols.map((k) => <td key={k}>{fmt(fmap.get(k), r[k])}</td>)}</tr>))}</tbody></table></div>
-          <p className="mt-2 text-xs text-slate-500">{run.data.disclaimer} Whether a filter like this ever picked winners is a question for the Backtest and Model Lab tabs.</p>
+          <p className="mt-2 text-xs text-slate-500">{res.disclaimer} Whether a filter like this ever picked winners is a question for the Backtest and Model Lab tabs.</p>
         </section>)}
     </div>
   );

@@ -212,10 +212,24 @@ def default_jobs(db_factory: Callable) -> list[JobSpec]:  # type: ignore[type-ar
                 failed[sym] = str(e)[:120]
         return {"models": names, "retrained": done, "failed": failed}
 
+    async def daily_briefing() -> dict:
+        from app.deps import get_llm_router
+        from app.llm.tasks.assistant import BRIEFING, briefing_pack, make_briefing
+        r = get_llm_router()
+        if not r.available(BRIEFING):
+            return {"skipped": "no LLM provider configured"}
+        with db_factory() as db:
+            pack = briefing_pack(db)
+        if not pack["facts"]:
+            return {"skipped": "no stored data"}
+        out = await make_briefing(r, pack)
+        return {"asof": pack["asof"], "facts": pack["facts"], "missing": pack["missing"], **out}
+
     return [
         JobSpec("refresh_prices", "Refresh prices", "Fetch new daily bars for the watchlist and indices.", "after_close", refresh_prices),
         JobSpec("ingest_news", "Fetch news", "Pull the last 3 days of news for each watchlist stock and score it locally.", "every:180", ingest_news),
         JobSpec("enrich_news", "AI-enrich news", "Classify new articles with the LLM (skipped without a provider; respects the daily budget).", "every:360", enrich_news),
+        JobSpec("daily_briefing", "Daily briefing", "Write the AI market briefing from the day's computed facts (skipped without an LLM provider).", "after_close", daily_briefing),
         JobSpec("retrain_models", "Retrain models", "Re-run the chosen models and their walk-forward test on each watchlist stock; adds a registry version.", "after_close",
                 retrain_models, enabled=s.scheduler_retrain),
     ]

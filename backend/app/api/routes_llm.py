@@ -5,7 +5,7 @@ import json
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -206,3 +206,97 @@ async def ai_backtest_review(body: BacktestReviewBody, r: LLMRouter = Depends(ge
                 "reason": "No LLM provider configured; showing the automatic red-flag checks only."}
     out = await _guard(ai.review_backtest(r, body.strategy, pack))
     return {"available": True, "badge": BADGE, "facts": pack["facts"], "red_flags": pack["flags"], **out}
+
+
+# ---------------- Phase 10A: chat agent, natural-language screener, briefing, red flags, safety eval ----------------
+
+class ChatBody(BaseModel):
+    message: str = Field(max_length=600)
+    history: list[dict[str, str]] = Field(default_factory=list, max_length=12)
+
+
+@router.post("/ai/chat")
+async def ai_chat(body: ChatBody, db: Session = Depends(get_session), r: LLMRouter = Depends(get_llm_router)) -> dict:
+    from app.agent.agent import run_agent
+    if not r.available("chat_agent"):
+        return {"available": False, "badge": BADGE, "reason": "No LLM provider configured for the chat agent. Add an API key to .env (see config/llm.yaml). "
+                "Everything else in QuantLens works without one."}
+    try:
+        out = await run_agent(r, db, body.message, body.history)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    return {"available": True, "badge": BADGE, **out}
+
+
+class NLScreenBody(BaseModel):
+    request: str = Field(max_length=400)
+
+
+@router.post("/ai/nl-screen")
+async def ai_nl_screen(body: NLScreenBody, db: Session = Depends(get_session), r: LLMRouter = Depends(get_llm_router)) -> dict:
+    from app.api.routes_fund import clean
+    from app.llm.base import BudgetExceeded, LLMUnavailable
+    from app.llm.tasks.assistant import NL_SCREEN, nl_screen
+    if not r.available(NL_SCREEN):
+        return {"available": False, "badge": BADGE, "reason": "No LLM provider configured. You can still build the screen by hand with the condition builder."}
+    try:
+        out = await nl_screen(r, db, body.request)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    except BudgetExceeded as e:
+        return {"available": True, "badge": BADGE, "screen": None, "error": f"Daily AI budget reached: {e}"}
+    except LLMUnavailable as e:
+        return {"available": True, "badge": BADGE, "screen": None, "error": f"No provider could answer: {e}"}
+    return clean({"available": True, "badge": BADGE, **out})
+
+
+@router.post("/ai/briefing")
+async def ai_briefing(db: Session = Depends(get_session), r: LLMRouter = Depends(get_llm_router)) -> dict:
+    from app.llm.tasks.assistant import BRIEFING, briefing_pack, make_briefing
+    pack = briefing_pack(db)
+    if not pack["facts"]:
+        raise HTTPException(404, "No stored data to brief on. Run make seed first.")
+    if (u := _unavailable(BRIEFING, r, pack)) is not None:
+        return {**u, "asof": pack["asof"]}
+    out = await _guard(make_briefing(r, pack))
+    return {"available": True, "badge": BADGE, "asof": pack["asof"], "facts": pack["facts"], "missing": pack["missing"], **out}
+
+
+@router.get("/ai/briefing/latest")
+def ai_briefing_latest(request: Request) -> dict:
+    """The briefing the scheduler produced last (if the daily_briefing job has run)."""
+    last = request.app.state.scheduler.last_run("daily_briefing")
+    if not last or last["status"] != "ok" or not last["result"] or not last["result"].get("report"):
+        return {"available": False, "reason": "No scheduled briefing yet. Press 'Write today's briefing', or enable the scheduler."}
+    return {"available": True, "badge": BADGE, "generated_at": last["finished"], **last["result"]}
+
+
+@router.get("/redflags/{symbol}")
+def redflags(symbol: str, db: Session = Depends(get_session)) -> dict:
+    from app.agent.redflags import red_flags
+    sym = _known(symbol)
+    out = red_flags(db, sym)
+    if not out["checked"]:
+        raise HTTPException(404, f"No stored data for {sym}.")
+    return out
+
+
+@router.get("/redflags")
+def redflags_watchlist(db: Session = Depends(get_session)) -> list[dict]:
+    from app.agent.redflags import red_flags
+    from app.api.routes import get_watchlist
+    rows = []
+    for sym in get_watchlist(db):
+        r = red_flags(db, sym)
+        rows.append({"symbol": sym, "count": r["count"], "high": sum(f["severity"] == "high" for f in r["flags"]), "medium": sum(f["severity"] == "medium" for f in r["flags"]),
+                     "top": r["flags"][0]["message"] if r["flags"] else None})
+    return sorted(rows, key=lambda x: (-x["high"], -x["medium"], x["symbol"]))
+
+
+@router.get("/llm/eval/safety")
+async def llm_eval_safety(db: Session = Depends(get_session), r: LLMRouter = Depends(get_llm_router)) -> dict:
+    """Run the prompt-injection corpus and the agent question set against the configured LLM (uses tokens)."""
+    from app.llm.eval_agent import eval_agent, eval_injections
+    if not r.available("chat_agent"):
+        raise HTTPException(503, "LLM unavailable: no provider configured")
+    return {"injection": await eval_injections(r, db), "agent": await eval_agent(r, db)}

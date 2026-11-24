@@ -120,7 +120,7 @@ def snapshot_row(db: Session, symbol: str, sector: str) -> dict[str, Any] | None
         row["composite"] = None
     try:
         s = sentiment_latest(db, symbol)
-        row["sentiment"] = _num(s.get("mean_sent") if isinstance(s, dict) else None)
+        row["sentiment"] = _num(s.get("recency_weighted") if isinstance(s, dict) else None)
     except Exception:  # noqa: BLE001
         row["sentiment"] = None
     fv = fundamentals_view(db, symbol)

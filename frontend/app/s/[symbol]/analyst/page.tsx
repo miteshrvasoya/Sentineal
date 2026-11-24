@@ -1,14 +1,27 @@
 "use client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { AiFooter, AiStatus, ClaimList, Evidence, FactsDisclosure } from "@/components/AiParts";
+import RedFlagList from "@/components/RedFlagList";
 import SymbolTabs from "@/components/SymbolTabs";
 import { api } from "@/lib/api";
 
 const card = "rounded border border-slate-200 p-3 dark:border-slate-800";
 const EXAMPLE = JSON.stringify({ n_trades: 18, total_return: 0.42, sharpe: 1.6, max_drawdown: -0.31, years: 2, costs_included: false, oos_fraction: 0, n_params_tuned: 6, top5_trade_share: 0.7 }, null, 2);
 const stanceColor = (s: string) => (s === "leaning positive" ? "bg-green-600" : s === "leaning negative" ? "bg-red-600" : "bg-slate-500");
+
+function Flags({ symbol }: { symbol: string }) {
+  const q = useQuery({ queryKey: ["redflags", symbol], queryFn: () => api.redFlags(symbol), retry: false });
+  return (
+    <section className={card} data-tour="red-flags">
+      <h2 className="text-lg font-semibold">Red flags</h2>
+      {q.isLoading && <div className="skeleton h-12" />}
+      {q.error && <p className="text-sm text-slate-500">{(q.error as Error).message}</p>}
+      {q.data && <RedFlagList d={q.data} />}
+    </section>
+  );
+}
 
 function Analyst({ symbol }: { symbol: string }) {
   const m = useMutation({ mutationFn: () => api.aiAnalyst(symbol) });
@@ -109,6 +122,7 @@ function View() {
       <div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold">{symbol}</h1>
         <span className="rounded bg-violet-600 px-2 py-0.5 text-xs text-white">AI layer: it explains computed facts, it does not invent them</span></div>
       <SymbolTabs />
+      <Flags symbol={symbol} />
       <Analyst symbol={symbol} />
       <Move symbol={symbol} />
       <Reviewer />

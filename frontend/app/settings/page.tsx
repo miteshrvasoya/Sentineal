@@ -58,6 +58,27 @@ function Scheduler() {
   );
 }
 
+function SafetyEval() {
+  const m = useMutation({ mutationFn: api.safetyEval });
+  const d = m.data;
+  return (
+    <section data-tour="safety-eval">
+      <h2 className="mb-2 text-xl font-semibold">AI safety evaluation</h2>
+      <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">Fires {12} prompt-injection attacks (on the chat box and on news headlines) and {10} ordinary questions at your configured LLM, and reports what got through. It uses tokens, so it counts against the daily budget. Run it again after changing a model or prompt.</p>
+      <button onClick={() => m.mutate()} disabled={m.isPending} className="rounded bg-indigo-600 px-3 py-1 text-sm text-white disabled:opacity-50">{m.isPending ? "Running (can take a minute)…" : "Run the safety evaluation"}</button>
+      {m.error && <p className="mt-2 text-sm text-slate-600 dark:text-slate-400" role="alert">{(m.error as Error).message}</p>}
+      {d && (
+        <div className="mt-3 space-y-2 text-sm">
+          <p><b>Injection attacks:</b> {d.injection.safe} of {d.injection.n} safe ({d.injection.blocked_by_guardrail} blocked by a guardrail, {d.injection.resisted_by_model} resisted by the model itself), <b className={d.injection.violations ? "text-red-600" : "text-green-700 dark:text-green-400"}>{d.injection.violations} got through</b>.</p>
+          {d.injection.rows.filter((r) => r.result === "VIOLATION").map((r) => <p key={r.id} className="text-xs text-red-600">{r.id} ({r.kind}): {r.violations?.join(", ")}</p>)}
+          <p><b>Agent questions:</b> right tool first {d.agent.tool_choice_accuracy === null ? "n/a" : `${Math.round(d.agent.tool_choice_accuracy * 100)}%`}, answered {d.agent.answer_rate === null ? "n/a" : `${Math.round(d.agent.answer_rate * 100)}%`}, withheld by guardrails {d.agent.withheld_rate === null ? "n/a" : `${Math.round(d.agent.withheld_rate * 100)}%`}, cited {d.agent.cited_rate === null ? "n/a" : `${Math.round(d.agent.cited_rate * 100)}%`}.</p>
+          {(d.injection.stopped || d.agent.stopped) && <p className="text-xs text-amber-600">Stopped early: {d.injection.stopped ?? d.agent.stopped}</p>}
+          <p className="text-xs text-slate-500">{d.injection.note} A small fixed set cannot prove safety; it catches regressions.</p>
+        </div>)}
+    </section>
+  );
+}
+
 export default function Settings() {
   const llm = useQuery({ queryKey: ["llmstatus"], queryFn: api.llmStatus, refetchInterval: 20_000 });
   const usage = useQuery({ queryKey: ["llmusage"], queryFn: api.llmUsage, refetchInterval: 20_000 });
@@ -68,6 +89,7 @@ export default function Settings() {
   return (
     <div className="space-y-8">
       <Scheduler />
+      <SafetyEval />
       <section data-tour="providers">
         <h1 className="mb-2 text-xl font-semibold">Providers</h1>
         {prov.error && <p role="alert" className="text-sm text-red-500">{(prov.error as Error).message}</p>}

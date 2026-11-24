@@ -15,7 +15,9 @@ Copy `.env.example` to `.env` to add keys later. Without keys the app uses Yahoo
 Open **Guide** in the app's top bar (or read `docs/GUIDE.md`) for a plain-language walkthrough of every feature, written for engineers who are not traders. The **Tour** menu replays an interactive, spotlight-style tour of the real screens for every phase. Each new phase adds a guide section and a tour.
 
 ## Status
-Phases 1–7 done: data providers and fallback, Angel One, indicators, market structure and patterns, news and sentiment, the optional LLM layer, fundamentals, risk and the signal scorecard, and statistical forecast models with honest walk-forward evaluation. Later phases are tracked in `docs/PLAN.md`.
+All planned phases (1 to 10A) are built: data providers with fallback, indicators, market structure, news and sentiment, fundamentals and risk, statistical and machine-learning forecast models with honest walk-forward evaluation, a backtester with Indian costs, a screener with breadth and sector rotation, a scheduler, Alembic migrations, optional AI features (analyst, explainers, chat, plain-English screens, briefing) with guardrails, and a Learn section. Backend tests: 400+ passing (`make test`). Deferred extras are in `docs/PLAN.md`.
+
+Optional extras: `make migrate` (Alembic), `make tour-check` (needs Playwright), `docker compose up` (not exercised in development), `SCHEDULER_ENABLED=true` in `.env` for background jobs. AI features need an API key in `.env`; everything else works without one. No live LLM, Yahoo or news provider was reachable during development, so all tests use synthetic data and scripted models.
 
 ## Known limits (Phase 1)
 - NSE holiday table covers 2025 and 2026 only and must be refreshed yearly.

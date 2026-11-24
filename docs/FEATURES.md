@@ -115,3 +115,7 @@ Endpoints: `POST /ai/analyst/{symbol}`, `POST /ai/explain-model/{symbol}`, `POST
 ## Phase 10: screener, breadth, scheduler, migrations (`app/screener/`, `app/scheduler.py`, `backend/alembic/`)
 
 `GET /screener/fields`, `POST /screener/run`, `GET /market/breadth`, `GET /market/sectors`, `GET /scheduler/status`, `POST /scheduler/run/{job}`. Frontend: `/screener`, `/market`, `/learn`, scheduler card on `/settings`. Migrations: `make migrate`.
+
+## Phase 10A: chat agent, NL screener, briefing, red flags, safety evaluation (`app/agent/`, `app/llm/tasks/assistant.py`, `app/llm/eval_agent.py`)
+
+`POST /ai/chat`, `POST /ai/nl-screen`, `POST /ai/briefing`, `GET /ai/briefing/latest`, `GET /redflags/{symbol}`, `GET /redflags`, `GET /llm/eval/safety`. Frontend: `/chat`, `/briefing`, NL box on `/screener`, red flags on the AI analyst tab, safety panel on `/settings`. Prompts: `chat_agent`, `nl_screener`, `briefing` (v1). Corpora: `data/llm_eval/injections.jsonl`, `agent_questions.jsonl`.

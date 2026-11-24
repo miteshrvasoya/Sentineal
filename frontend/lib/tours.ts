@@ -30,7 +30,23 @@ const NOTE = "Appears after you run a screen.";
 
 export const TOURS: TourDef[] = [
   {
-    id: "phase-10", phase: "Phase 10", title: "Screener, market breadth, scheduler and Learn", isNew: true,
+    id: "phase-10a", phase: "Phase 10A", title: "Chat, plain-English screens, briefing and red flags", isNew: true,
+    blurb: "Ask questions in words, describe a screen instead of building it, get a daily briefing, and see rule-based warning signs.",
+    steps: [
+      { title: "Talking to your data", body: "Phase 10A adds a chat assistant, a plain-English screener, a daily briefing and a red-flag detector.\n\nThe AI parts are read-only and fenced: the assistant can only call lookup tools, must cite what it looked up, can only quote numbers those lookups returned, and cannot give advice or trade. The red flags need no AI at all." },
+      { route: "/chat", target: "chat-box", title: "Ask a question", body: "Type a question about the stored stocks. The assistant decides which lookup to run (a screen, red flags, a stock's facts, breadth, sectors, model verdicts, headlines), reads the result, and explains it.\n\nIt cannot place trades, change settings or tell you what to buy. Without an API key this page tells you so; the rest of the app is unaffected." },
+      { route: "/chat", target: "chat-examples", title: "Try an example", body: "Click one to see the flow. Under each answer, 'What I looked up' shows the exact tool calls and what they returned, and 'Based on' lists the lookups the claims rest on, so you can check them.", note: "Shown on an empty chat." },
+      { route: "/chat", target: "chat-steps", title: "Check its working", body: "Every lookup is listed with its arguments and a preview of the result. Text from the internet, such as headlines, is fenced as untrusted data before the AI sees it, and instruction-like text inside it is ignored.", note: "Appears after you ask something (needs an API key)." },
+      { route: "/screener", target: "screen-nl", title: "Describe a screen in words", body: "Write what you want ('strong stocks that dipped more than 5% this month, in IT or banks'). The AI translates it into the same conditions the builder uses and loads them below so you can check and edit them.\n\nIt only translates. Anything it cannot express, such as promoter holding, is listed as unsupported and left out of the screen." },
+      { route: "/briefing", target: "brief-generate", title: "Daily briefing", body: "One click writes a short market briefing from the day's computed facts: breadth, best and worst sectors, watchlist movers and red flags. Every statement cites a fact. The scheduler can write one automatically after each close." },
+      { route: "/briefing", target: "brief-flags", title: "Red flags across the watchlist", body: "Rule-based warning signs for each watchlist stock: deep drawdowns, big single-day moves, volatility spikes, heavy debt, losses, falling revenue, a weak Piotroski score, Altman distress, stale data, negative news. No AI involved.\n\nA flag is a prompt to look closer, not a verdict. No flags is not a clean bill of health." },
+      { route: "/s/RELIANCE/analyst", target: "red-flags", title: "Flags for one stock", body: "The same checks on a stock's AI analyst tab, with the numbers behind each flag (hover a line)." },
+      { route: "/settings", target: "safety-eval", title: "Testing the guardrails", body: "This panel fires prompt-injection attacks and ordinary questions at your configured model and reports what got through. Run it after changing a model or prompt to catch regressions. It uses tokens.", note: "Needs an API key to run." },
+      { title: "That is Phase 10A", body: "That completes the planned build. Remember the rule for everything AI here: it explains facts you can check; it is never a source of facts and never a source of advice." },
+    ],
+  },
+  {
+    id: "phase-10", phase: "Phase 10", title: "Screener, market breadth, scheduler and Learn",
     blurb: "Find stocks by rules, see how broad the market is, keep data fresh automatically, and learn the ideas behind it all.",
     steps: [
       { title: "From one stock to the whole universe", body: "Phase 10 widens the view: a screener to filter all stored stocks, market breadth and sector rotation, a scheduler that keeps data fresh, and a Learn section that explains the ideas for engineers." },

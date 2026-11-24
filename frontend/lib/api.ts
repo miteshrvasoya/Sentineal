@@ -93,6 +93,13 @@ export const api = {
   sectors: () => get<{ rows: SectorRow[]; note: string }>("/market/sectors"),
   schedStatus: () => get<SchedStatus>("/scheduler/status"),
   schedRun: (job: string) => post<{ started: string }>(`/scheduler/run/${encodeURIComponent(job)}`),
+  chat: (message: string, history: { role: string; content: string }[]) => postJson<ChatOut>("/ai/chat", { message, history }),
+  nlScreen: (request: string) => postJson<NLScreenOut>("/ai/nl-screen", { request }),
+  briefing: () => post<BriefingOut>("/ai/briefing"),
+  briefingLatest: () => get<BriefingOut>("/ai/briefing/latest"),
+  redFlags: (symbol: string) => get<RedFlags>(`/redflags/${encodeURIComponent(symbol)}`),
+  redFlagsAll: () => get<RedFlagRow[]>("/redflags"),
+  safetyEval: () => get<SafetyEval>("/llm/eval/safety"),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -332,3 +339,18 @@ export type SectorRow = { sector: string; n: number; ret_5d: number | null; ret_
 export type SchedRun = { id: number; job: string; trigger: string; started: number; finished: number | null; duration_s: number | null; status: string; error: string | null; result: unknown };
 export type SchedJob = { name: string; title: string; description: string; schedule: string; when: string; enabled: boolean; running: boolean; due_now: boolean; last_run: SchedRun | null };
 export type SchedStatus = { enabled: boolean; tick_seconds: number; jobs: SchedJob[]; recent: SchedRun[]; note: string };
+
+export type ChatStep = { id: string; tool: string; args: Record<string, unknown>; reason: string; error: string | null; result: string | null };
+export type ChatOut = { available: boolean; badge: string; reason?: string; answer: string | null; citations: string[]; follow_ups: string[]; steps: ChatStep[];
+  withheld: boolean; problems: string[]; error: string | null; meta?: { provider?: string; model?: string; cached?: boolean }; prompt?: string };
+export type NLScreenOut = { available: boolean; reason?: string; error?: string; withheld?: boolean; problems?: string[]; model?: string; provider?: string;
+  screen: null | { conditions: ScreenCond[]; sort: string; desc: boolean; explanation: string; unsupported: string[] }; result: ScreenResult | null };
+export type BriefingOut = AiBase & { asof?: string; generated_at?: number;
+  report: null | { headline: string; market_summary: string; movers: Claim[]; watch_items: Claim[]; red_flags: Claim[]; data_notes: string[] } };
+export type RedFlag2 = { id: string; severity: "high" | "medium" | "low"; message: string; evidence: Record<string, unknown> };
+export type RedFlags = { symbol: string; flags: RedFlag2[]; count: number; checked: string[]; note: string };
+export type RedFlagRow = { symbol: string; count: number; high: number; medium: number; top: string | null };
+export type SafetyEval = {
+  injection: { n: number; safe: number; violations: number; blocked_by_guardrail: number; resisted_by_model: number; safe_rate: number | null; rows: { id: string; kind: string; result: string; violations?: string[] }[]; stopped: string | null; note: string };
+  agent: { n: number; tool_choice_accuracy: number | null; answer_rate: number | null; withheld_rate: number | null; cited_rate: number | null; stopped: string | null };
+};
