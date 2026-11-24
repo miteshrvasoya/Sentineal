@@ -22,10 +22,28 @@ const ST = "/s/{symbol}/structure";
 const NW = "/s/{symbol}/news";
 const FD = "/s/{symbol}/fundamentals";
 const MD = "/s/{symbol}/models";
+const LB = "/s/{symbol}/lab";
+
 
 export const TOURS: TourDef[] = [
   {
-    id: "phase-7", phase: "Phase 7", title: "Forecast models, tested honestly", isNew: true,
+    id: "phase-8", phase: "Phase 8", title: "Machine learning, ensembles and the Model Lab", isNew: true,
+    blurb: "Gradient-boosted and deep models, explained with SHAP, blended into an ensemble, and held to the same honest test.",
+    steps: [
+      { title: "More powerful models, same strict judge", body: "Phase 8 adds machine-learning models (LightGBM, XGBoost, random forest, logistic regression, an experimental GRU/LSTM), an ensemble that blends your picks, and a Model Lab for dissecting results.\n\nMore powerful models overfit more easily. So each one is shrunk toward the plain base rate unless it proves skill on days it never trained on. Expect many to end up at 'no demonstrated edge'." },
+      { route: MD, target: "model-groups", title: "Models grouped by family", body: "Statistical, machine learning and deep models. Greyed, struck-through ones are unavailable here (hover to see why, for example PyTorch not installed). 'news' marks models needing stored articles; 'pooled' marks ones that also train on other stocks." },
+      { route: MD, target: "interpret", title: "Why does the model say that?", body: "SHAP breaks one prediction into per-feature pushes: green toward up, red toward down. Permutation importance shuffles a feature on held-out days and measures how much worse the model gets. Partial dependence shows how P(up) moves as one feature varies.\n\nThese explain what the model learned, not what moves the market. 'Trust in model' shows how much of its output survived blending with the base rate.", note: "Appears after running an ML model (e.g. lgbm)." },
+      { route: MD, target: "ablation", title: "Does news add anything?", body: "Three models differing only in inputs: price only, news only, price plus news. A paired test checks whether adding news improves forecasts beyond chance. News history is usually short, and the panel says so.", note: "Needs lgbm, lgbm_sentiment and lgbm_combined run together with stored news." },
+      { route: LB, target: "lab-leaderboard", title: "The Model Lab leaderboard", body: "Every metric in one sortable table. Click headers to sort, hover for definitions, click a model name to add or remove it from the charts below.", note: "Needs a walk-forward run at the chosen horizon." },
+      { route: LB, target: "lab-equity", title: "Equity vs always-long", body: "A diagnostic: go long when the model says up, otherwise stay in cash. The dashed line is simply holding. There are no trading costs here; the real backtester arrives in Phase 9." },
+      { route: LB, target: "lab-decay", title: "Skill decay", body: "Cumulative advantage over the baseline. Rising then flattening means an edge that faded. Ending near zero means there never was one." },
+      { route: LB, target: "lab-calibration", title: "Calibration overlay", body: "Do stated probabilities match reality? Curves on the diagonal are honest." },
+      { route: LB, target: "lab-registry", title: "Registry and drift", body: "Every run is stored as a version with its data window and feature hash. A drift check flags models whose skill has fallen versus earlier versions." },
+      { title: "That is Phase 8", body: "Takeaway: complexity buys nothing unless it survives the out-of-sample test. Next: an AI analyst layer, then the backtester with Indian trading costs." },
+    ],
+  },
+  {
+    id: "phase-7", phase: "Phase 7", title: "Forecast models, tested honestly",
     blurb: "Statistical models, measured against simple baselines out of sample. Most will say: no demonstrated edge.",
     steps: [
       { title: "Forecasting without fooling ourselves", body: "Phase 7 adds forecasting models: ARIMA, volatility (GARCH), Monte Carlo, and a regime detector.\n\nBut the real feature is the test. Every model is judged on forecasts it made BEFORE seeing the outcome, against simple baselines. The honest, expected result for most models on most stocks is 'no demonstrated edge'. This page is built to say that clearly instead of flattering the models." },

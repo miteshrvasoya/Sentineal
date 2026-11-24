@@ -43,6 +43,24 @@ def shrink_to_prior(p: np.ndarray, prior: np.ndarray, lam: float) -> np.ndarray:
     return (1.0 - lam) * p + lam * prior[None, :]
 
 
+def choose_shrink(yv: np.ndarray, pv: np.ndarray, prior_fit: np.ndarray) -> tuple[float, list[float]]:
+    """Pick how much to trust the model on held-out rows, with the ONE-STANDARD-ERROR rule.
+
+    Plain "lowest held-out loss" over a grid of trust levels on a small validation set suffers from winner's curse: a model with no
+    skill sometimes wins by luck and gets trusted. Instead take the most conservative trust level (highest shrinkage toward the base
+    rate) whose held-out loss is within one standard error of the best. A real signal beats the base rate by far more than one
+    standard error and keeps its trust; noise is shrunk to the base rate."""
+    rows = []
+    for lam in LAMBDAS:
+        p = np.clip(shrink_to_prior(pv, prior_fit, lam), 1e-9, 1.0)
+        rows.append(-np.log(p[np.arange(len(yv)), yv]))
+    means = np.array([r.mean() for r in rows])
+    best = int(np.argmin(means))
+    se = float(rows[best].std(ddof=1) / np.sqrt(len(yv))) if len(yv) > 1 else 0.0
+    ok = np.flatnonzero(means <= means[best] + se)
+    return float(LAMBDAS[int(ok.max())]), [float(m) for m in means]
+
+
 class ClassWrapper:
     """Makes any scikit-learn style classifier tolerate a missing class (LightGBM silently shrinks, XGBoost raises) and always
     returns an (n, 3) matrix ordered up / flat / down."""
@@ -132,15 +150,14 @@ class Tabular(Model):
         self.best_n = self.fit_stage(clf1, Xf, yf, Xv, yv)
         pv = clf1.proba(Xv)
         prior_fit = np.bincount(yf, minlength=3) / len(yf)
-        losses = [logloss(yv, shrink_to_prior(pv, prior_fit, lam)) for lam in LAMBDAS]
-        self.shrink = float(LAMBDAS[int(np.argmin(losses))])            # chosen on held-out days only
+        self.shrink, losses = choose_shrink(yv, pv, prior_fit)          # chosen on held-out days only, one-standard-error rule
         self.prior = np.bincount(y, minlength=3) / len(y)
         clf = ClassWrapper(self.make_clf(params, self.best_n or None))
         clf.fit(X, y)                                                # final model: all labelled rows
         self.clf, self.clf1 = clf, clf1
         self.Xv, self.yv, self.rv = Xv, yv, rv
         self.quant = self.make_quantiles(X, r, Xv, rv, Xf, rf)
-        self.val_loss = {"raw": logloss(yv, pv), "calibrated": min(losses), "trust_in_model": 1.0 - self.shrink,
+        self.val_loss = {"raw": logloss(yv, pv), "calibrated": float(losses[int(round(self.shrink * 10))]), "trust_in_model": 1.0 - self.shrink,
                          "base_rate_loss": logloss(yv, np.tile(prior_fit, (len(yv), 1)))}
         self._info = {**window_info(train), "labelled_rows": n, "validation_rows": int(n_val), "features": len(self.features)}
         self._fitted = True
@@ -380,6 +397,10 @@ class RandomForest(Tabular):
         return [{"name": f"top feature: {f}", "value": f"{v:.3f} importance"} for f, v in imp], extras
 
 
+def _clip5(z: np.ndarray) -> np.ndarray:
+    return np.clip(z, -5.0, 5.0)
+
+
 class Logit(Tabular):
     name = "logit"
     description = "Regularised multinomial logistic regression on standardised features. Simple, interpretable, hard to overfit."
@@ -388,16 +409,18 @@ class Logit(Tabular):
         from sklearn.impute import SimpleImputer
         from sklearn.linear_model import LogisticRegression
         from sklearn.pipeline import make_pipeline
-        from sklearn.preprocessing import StandardScaler
-        return make_pipeline(SimpleImputer(strategy="median", keep_empty_features=True), StandardScaler(),
+        from sklearn.preprocessing import FunctionTransformer, StandardScaler
+        # Clip standardised features to +/-5 sigma: a linear model extrapolates linearly, so an extreme input (a stock that just
+        # moved 10x) would otherwise produce an absurd forecast.
+        return make_pipeline(SimpleImputer(strategy="median", keep_empty_features=True), StandardScaler(), FunctionTransformer(_clip5),
                              LogisticRegression(C=0.05, max_iter=500, random_state=self.seed))
 
     def make_quantiles(self, X: pd.DataFrame, r: np.ndarray, Xv: pd.DataFrame, rv: np.ndarray, X1: pd.DataFrame, r1: np.ndarray) -> Any:
         from sklearn.impute import SimpleImputer
         from sklearn.linear_model import Ridge
         from sklearn.pipeline import make_pipeline
-        from sklearn.preprocessing import StandardScaler
-        point = make_pipeline(SimpleImputer(strategy="median", keep_empty_features=True), StandardScaler(), Ridge(alpha=300.0))
+        from sklearn.preprocessing import FunctionTransformer, StandardScaler
+        point = make_pipeline(SimpleImputer(strategy="median", keep_empty_features=True), StandardScaler(), FunctionTransformer(_clip5), Ridge(alpha=300.0))
         return _regressor_quantiles(point, X, r, Xv, rv, X1, r1)
 
     def explain_row(self, row: pd.DataFrame, detail: bool) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -405,7 +428,7 @@ class Logit(Tabular):
         pos = list(self.clf.present).index(0) if 0 in self.clf.present else None
         drivers: list[dict[str, Any]] = []
         if pos is not None:
-            z = self.clf.model.steps[1][1].transform(self.clf.model.steps[0][1].transform(row))[0]
+            z = _clip5(self.clf.model.steps[1][1].transform(self.clf.model.steps[0][1].transform(row))[0])
             contrib = lr.coef_[pos] * z
             for i in np.argsort(-np.abs(contrib))[:5]:
                 drivers.append({"name": f"{self.features[i]} pushes P(up)", "value": f"{contrib[i]:+.3f}"})

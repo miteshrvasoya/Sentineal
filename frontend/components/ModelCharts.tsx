@@ -104,3 +104,92 @@ export function RegimeStrip({ regime, prob, dates, labels }: { regime: number[];
     </div>
   );
 }
+
+/** Horizontal bars, largest first. Used for mean |SHAP| and permutation importance. */
+export function BarList({ items, unit = "", color = "#6366f1", digits = 3 }: { items: { label: string; value: number }[]; unit?: string; color?: string; digits?: number }) {
+  const max = Math.max(...items.map((i) => Math.abs(i.value)), 1e-12);
+  return (
+    <ul className="space-y-1 text-xs">
+      {items.map((i) => (
+        <li key={i.label} className="grid grid-cols-[9.5rem_1fr_4.5rem] items-center gap-2">
+          <span className="truncate" title={i.label}>{i.label}</span>
+          <div className="h-3 rounded bg-slate-100 dark:bg-slate-800"><div className="h-3 rounded" style={{ width: `${(Math.abs(i.value) / max) * 100}%`, background: color }} /></div>
+          <span className="text-right tabular-nums text-slate-500">{i.value.toFixed(digits)}{unit}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Per-prediction contributions: bars to the right push toward UP, to the left toward DOWN. */
+export function PushBars({ items }: { items: { label: string; value: number; note?: string }[] }) {
+  const max = Math.max(...items.map((i) => Math.abs(i.value)), 1e-12);
+  return (
+    <ul className="space-y-1 text-xs">
+      {items.map((i) => (
+        <li key={i.label} className="grid grid-cols-[11rem_1fr_3.5rem] items-center gap-2">
+          <span className="truncate" title={i.note ?? i.label}>{i.label}</span>
+          <div className="relative h-3 rounded bg-slate-100 dark:bg-slate-800">
+            <div className="absolute inset-y-0 left-1/2 w-px bg-slate-400" />
+            <div className="absolute inset-y-0.5 rounded" style={i.value >= 0 ? { left: "50%", width: `${(i.value / max) * 50}%`, background: "#16a34a" } : { right: "50%", width: `${(-i.value / max) * 50}%`, background: "#dc2626" }} />
+          </div>
+          <span className="text-right tabular-nums text-slate-500">{i.value >= 0 ? "+" : ""}{i.value.toFixed(3)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Partial dependence: average P(up) as one feature is swept across its typical range. */
+export function PdpChart({ feature, grid, p_up }: { feature: string; grid: number[]; p_up: number[] }) {
+  const W2 = 220, H2 = 110, L = 30, R = 6, T = 8, B = 20;
+  const lo = Math.min(...p_up), hi = Math.max(...p_up), span = hi - lo || 0.01;
+  const x = (i: number) => L + (i / (grid.length - 1)) * (W2 - L - R);
+  const y = (v: number) => T + (1 - (v - lo) / span) * (H2 - T - B);
+  return (
+    <figure>
+      <svg viewBox={`0 0 ${W2} ${H2}`} role="img" aria-label={`Partial dependence of P(up) on ${feature}`} className="w-full max-w-[16rem]">
+        <polyline fill="none" stroke="#6366f1" strokeWidth="1.8" points={p_up.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")} />
+        <text x={L - 3} y={T + 6} fontSize="9" textAnchor="end" fill="currentColor" opacity="0.6">{(hi * 100).toFixed(0)}%</text>
+        <text x={L - 3} y={H2 - B} fontSize="9" textAnchor="end" fill="currentColor" opacity="0.6">{(lo * 100).toFixed(0)}%</text>
+        <text x={L} y={H2 - 6} fontSize="9" fill="currentColor" opacity="0.6">{grid[0].toPrecision(2)}</text>
+        <text x={W2 - R} y={H2 - 6} fontSize="9" textAnchor="end" fill="currentColor" opacity="0.6">{grid[grid.length - 1].toPrecision(2)}</text>
+      </svg>
+      <figcaption className="text-[11px] text-slate-500">P(up) vs <b>{feature}</b></figcaption>
+    </figure>
+  );
+}
+
+export type Series = { name: string; color: string; points: { date: string; v: number }[]; dashed?: boolean };
+const PALETTE = ["#6366f1", "#16a34a", "#f59e0b", "#dc2626", "#0ea5e9", "#a855f7", "#14b8a6", "#ec4899", "#84cc16", "#f97316", "#64748b", "#0891b2"];
+export const colorFor = (i: number) => PALETTE[i % PALETTE.length];
+
+/** Several time series on one axis, with a legend. Dates are placed by real time, so series of different lengths line up. */
+export function MultiLine({ series, label, fmt = (v: number) => v.toFixed(1), baseline }: { series: Series[]; label: string; fmt?: (v: number) => string; baseline?: number }) {
+  const Hh = 200, L = 46, R = 8, T = 8, B = 20;
+  const all = series.flatMap((s) => s.points);
+  if (all.length < 2) return <p className="text-sm text-slate-500">Not enough data for {label}.</p>;
+  const ts = all.map((p) => Date.parse(p.date));
+  const t0 = Math.min(...ts), t1 = Math.max(...ts);
+  const vals = all.map((p) => p.v).concat(baseline !== undefined ? [baseline] : []);
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const x = (d: string) => L + ((Date.parse(d) - t0) / (t1 - t0 || 1)) * (W - L - R);
+  const y = (v: number) => T + (1 - (v - lo) / span) * (Hh - T - B);
+  return (
+    <figure>
+      <svg viewBox={`0 0 ${W} ${Hh}`} role="img" aria-label={label} className="w-full">
+        {baseline !== undefined && <line x1={L} x2={W - R} y1={y(baseline)} y2={y(baseline)} stroke="currentColor" opacity="0.3" strokeDasharray="3 3" />}
+        {series.map((s) => (
+          <polyline key={s.name} fill="none" stroke={s.color} strokeWidth={s.dashed ? 1.2 : 1.8} strokeDasharray={s.dashed ? "4 3" : undefined}
+            points={s.points.map((p) => `${x(p.date).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")} />
+        ))}
+        {[lo, (lo + hi) / 2, hi].map((v) => <text key={v} x={L - 4} y={y(v) + 3} fontSize="10" textAnchor="end" fill="currentColor" opacity="0.6">{fmt(v)}</text>)}
+        <text x={L} y={Hh - 5} fontSize="10" fill="currentColor" opacity="0.6">{new Date(t0).toISOString().slice(0, 10)}</text>
+        <text x={W - R} y={Hh - 5} fontSize="10" textAnchor="end" fill="currentColor" opacity="0.6">{new Date(t1).toISOString().slice(0, 10)}</text>
+      </svg>
+      <figcaption className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+        {series.map((s) => <span key={s.name}><span className="mr-1 inline-block h-2 w-3 rounded-sm align-middle" style={{ background: s.color }} />{s.name}</span>)}
+      </figcaption>
+    </figure>
+  );
+}

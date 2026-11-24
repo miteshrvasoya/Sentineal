@@ -99,3 +99,7 @@ See the in-app Guide for the full walkthrough and the Phase 7 tour. Summary:
 - **Registry and jobs:** every run saved as a new version (window, parameters, feature hash, metrics); background jobs with progress.
 - **API:** `GET /models`, `POST /models/{symbol}/run`, `GET /jobs/{id}`, `GET /analysis/{symbol}`, `GET /models/{symbol}/evaluation`, `GET /models/{symbol}/registry`, `GET /analysis/seasonality/{symbol}`, `GET /analysis/pairs/{symbol}`.
 - **Measured behaviour:** on 20 simulated no-signal series (5 models each) a "demonstrated edge" was declared for 1 of 20 series (5%); a strong planted next-day momentum is detected (skill 7-15%, p 1e-7 to 0.01) while the same momentum at a 5-day horizon is correctly not over-claimed (low power).
+
+## Phase 8: machine learning, ensembles and the Model Lab (`app/models/ml*.py`, `deep.py`, `ensemble.py`, `app/eval/purged_cv.py`)
+
+See the in-app Guide and the Phase 8 tour. Summary: LightGBM, XGBoost, random forest, logistic regression, news-only and price+news LightGBM, experimental GRU/LSTM (optional `deep` extra); shrinkage toward the base rate with a one-standard-error rule; SHAP, permutation importance and partial dependence; a causal ensemble; `GET /models/{symbol}/ablation`; the Model Lab page `/s/{symbol}/lab`; registry drift check.

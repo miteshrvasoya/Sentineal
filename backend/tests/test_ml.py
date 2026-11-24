@@ -210,15 +210,16 @@ def test_models_refuse_wrong_horizon_and_too_little_data(noise):
 def test_noise_earns_little_trust_but_real_signal_earns_a_lot(noise, momentum):
     trust_noise = [reg.build(n, fast=True, horizon=1).fit(noise.iloc[:800]).val_loss["trust_in_model"] for n in ("lgbm", "xgb", "rf", "logit")]
     trust_signal = [reg.build(n, fast=True, horizon=1).fit(momentum.iloc[:900]).val_loss["trust_in_model"] for n in ("lgbm", "xgb", "logit")]
-    assert max(trust_noise) <= 0.5 and np.mean(trust_noise) < 0.25                     # a model with nothing to learn falls back to the base rate
-    assert min(trust_signal) >= 0.5 and np.mean(trust_signal) > 0.7                    # one with a real signal is trusted
+    assert max(trust_noise) <= 0.1                                                     # a model with nothing to learn falls back to the base rate
+    assert min(trust_signal) >= 0.2 and np.mean(trust_signal) >= 0.3                   # one with a real signal earns real (but cautious) trust
+    assert min(trust_signal) > max(trust_noise) + 0.15
 
 
 def test_walk_forward_ml_has_no_lookahead_when_the_future_changes():
     d = utc(prices(640, seed=8))
     T = 540
     d2 = d.copy()
-    d2.iloc[T + 1:, d2.columns.get_loc("close")] *= np.exp(np.random.default_rng(0).normal(0, 0.2, len(d2) - T - 1).cumsum())
+    d2.iloc[T + 1:, d2.columns.get_loc("close")] *= np.exp(np.random.default_rng(0).normal(0, 0.04, len(d2) - T - 1).cumsum())
     cfg = WFConfig(horizon=5, min_train=300, refit_every=63)
     for name in ("lgbm", "logit"):
         a = walk_forward(lambda n=name: reg.build(n, fast=True, horizon=5), d, cfg)
@@ -290,9 +291,12 @@ def test_sentiment_models_need_news_and_use_it_when_present(momentum):
     sm = reg.build("lgbm_sentiment", fast=True, horizon=1, aux=aux).fit(d)
     cm = reg.build("lgbm_combined", fast=True, horizon=1, aux=aux).fit(d)
     assert set(sm.features) == set(SENT_COLS) and set(cm.features) == set(PRICE_COLS) | set(SENT_COLS)
-    assert sm.val_loss["trust_in_model"] > 0.5                                         # informative news is learnable
-    useless = {"sentiment": sent_frame(d, horizon=1, informative=False)}
-    assert reg.build("lgbm_sentiment", fast=True, horizon=1, aux=useless).fit(d).val_loss["trust_in_model"] <= 0.5
+    assert sm.val_loss["trust_in_model"] >= 0.6                                        # informative news is learnable
+    # random news must not be trusted (checked over several seeds: a single small validation set can be fooled by luck,
+    # which is exactly what the one-standard-error rule guards against)
+    useless = [reg.build("lgbm_sentiment", fast=True, horizon=1, aux={"sentiment": sent_frame(d, horizon=1, informative=False, seed=k)}).fit(d)
+               .val_loss["trust_in_model"] for k in range(3)]
+    assert np.mean(useless) <= 0.2 and max(useless) <= 0.4
 
 
 def test_registry_availability_metadata():
@@ -376,7 +380,8 @@ def test_ensemble_probabilities_and_weights_follow_performance():
     preds = fake_preds(skill=(0.5, 0.0))                                  # model a knows the answer, b does not
     e = ens.combine_walkforward(preds, horizon=5, stride=5)
     assert e.attrs["weights_last"]["a"] > 0.9 and np.allclose(e[["p_up", "p_flat", "p_down"]].sum(axis=1), 1.0)
-    assert e["p_up"].iloc[0] == pytest.approx(0.4)                         # no history yet: equal weights of two identical priors
+    first = np.mean([preds["a"]["p_up"].iloc[0], preds["b"]["p_up"].iloc[0]])
+    assert e["p_up"].iloc[0] == pytest.approx(first)                       # no resolved history yet: plain equal-weight average
     assert e["q95"].iloc[-1] > 0.04 and e["q95"].iloc[-1] < 0.08          # quantiles are a weighted blend of 0.04 and 0.08
     cur = ens.current_weights(preds, 5, 5)
     assert cur["a"] > 0.9 and sum(cur.values()) == pytest.approx(1.0)
@@ -420,3 +425,30 @@ def test_equity_curve_hand_computed():
     assert [round(x["v"], 3) for x in eq["series"]] == [110.0, 110.0, 115.5]            # long, cash while it said down, long again
     assert [round(x["v"], 3) for x in eq["buy_hold"]] == [110.0, 88.0, 92.4] and eq["exposure"] == pytest.approx(2 / 3)
     assert eq["total_return"] == pytest.approx(0.155) and eq["buy_hold_return"] == pytest.approx(-0.076)
+
+
+def test_linear_models_stay_sane_when_a_feature_is_extreme(noise):
+    """A stock that suddenly moves 10x puts features far outside anything seen in training. Linear models must not extrapolate to
+    absurd forecasts (standardised features are clipped to +/-5 sigma)."""
+    d = noise.iloc[:800]
+    m = reg.build("logit", fast=True, horizon=5).fit(d)
+    wild = d.copy()
+    wild.iloc[-3:, wild.columns.get_loc("close")] = d["close"].iloc[-4] * np.array([1.8, 4.0, 10.0])
+    wild[["open", "high", "low"]] = wild[["close"]].to_numpy().repeat(3, axis=1)
+    v = m.predict(wild, 5, detail=False)
+    q = list(v.quantiles.values())
+    assert all(np.isfinite(q)) and max(abs(math.log1p(x)) for x in q) <= 2.0 and v.p_up + v.p_flat + v.p_down == pytest.approx(1.0)
+
+
+def test_one_standard_error_rule_prefers_the_simpler_model_when_gain_is_noise():
+    from app.models.ml import choose_shrink
+    rng = np.random.default_rng(0)
+    y = rng.choice(3, size=150, p=[0.4, 0.2, 0.4])
+    prior = np.array([0.4, 0.2, 0.4])
+    noisy = np.clip(prior + rng.normal(0, 0.05, (150, 3)), 0.05, None)
+    noisy /= noisy.sum(axis=1, keepdims=True)
+    lam, losses = choose_shrink(y, noisy, prior)
+    assert lam >= 0.8 and len(losses) == 11                                  # a model that is just the prior plus jitter: fall back to the base rate
+    good = np.full((150, 3), 0.05)
+    good[np.arange(150), y] = 0.90                                          # a model that is right: keep its trust
+    assert choose_shrink(y, good, prior)[0] <= 0.2

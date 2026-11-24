@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from app.models.base import Model, ModelError, ModelView, flat_band, window_info
-from app.models.ml import LAMBDAS, QS, logloss, shrink_to_prior
+from app.models.ml import QS, choose_shrink, logloss, shrink_to_prior
 from app.models.ml_features import MIN_ROWS, build_dataset, price_features
 
 FEATS = ["ret_1d", "ret_5d", "rsi", "macd_hist_pct", "atr_pct", "rv_cc", "cmf", "rvol", "close_vs_ema20", "close_vs_ema50",
@@ -153,14 +153,13 @@ class _Deep(Model):
         with torch.no_grad():
             pv = torch.softmax(net(Xv_t), dim=1).numpy()
         prior_fit = np.bincount(yt, minlength=3) / len(yt)
-        losses = [logloss(yv, shrink_to_prior(pv, prior_fit, lam)) for lam in LAMBDAS]
-        self.shrink = float(LAMBDAS[int(np.argmin(losses))])
+        self.shrink, losses = choose_shrink(yv, pv, prior_fit)
         self.prior = prior_fit
         # Return quantiles: expected return from class means, plus empirical residual quantiles on the validation tail.
         self.class_mean = np.array([float(rt[yt == k].mean()) if (yt == k).any() else 0.0 for k in range(3)])
         resid = rv - shrink_to_prior(pv, self.prior, self.shrink) @ self.class_mean
         self.offsets = np.quantile(resid, QS)
-        self.val_loss = {"raw": logloss(yv, pv), "calibrated": min(losses), "trust_in_model": 1.0 - self.shrink,
+        self.val_loss = {"raw": logloss(yv, pv), "calibrated": float(losses[int(round(self.shrink * 10))]), "trust_in_model": 1.0 - self.shrink,
                          "base_rate_loss": logloss(yv, np.tile(prior_fit, (len(yv), 1)))}
         self._info = {**window_info(train), "labelled_windows": n, "validation_rows": int(n_val), "window_days": WIN, "features": len(FEATS)}
         self._fitted = True

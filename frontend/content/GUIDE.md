@@ -10,7 +10,8 @@ This table grows every phase. The newest row is on top.
 
 | Phase | Theme | One-line summary | Status |
 |---|---|---|---|
-| **7** | **Forecast models, tested honestly** | Eight statistical models plus baselines, judged out of sample with walk-forward tests, calibration and corrected significance | **NEW** |
+| **8** | **Machine learning, ensembles, Model Lab** | Gradient-boosted, forest, logistic and experimental deep models with SHAP explanations, a news ablation, a causal ensemble and a Model Lab, all held to the same walk-forward test | **NEW** |
+| 7 | Forecast models, tested honestly | Eight statistical models plus baselines, judged out of sample with walk-forward tests, calibration and corrected significance | done |
 | 6 | Fundamentals, risk, scorecard | Ratios and health scores, an editable DCF, risk metrics, and a transparent signal scorecard in the watchlist | done |
 | 5A | LLM layer | Optional AI that classifies news (event type, importance, summary), gives a second sentiment opinion, with budgets and guardrails | done |
 | 5 | News and sentiment | Six news sources, dedupe, ticker tagging, FinBERT/VADER scoring, daily sentiment features | done |
@@ -19,7 +20,7 @@ This table grows every phase. The newest row is on top.
 | 2 | Data reliability | Angel One broker data, incremental backfill, data-quality report | done |
 | 1 | Foundations | Price API, candlestick page, provider fallback, NSE calendar | done |
 
-Coming next: machine-learning models, ensembles and the Model Lab (Phase 8), the AI analyst (8A), a backtester (9), a screener and scheduler (10), and the chat agent and briefings (10A).
+Coming next: the AI analyst (8A), a backtester (9), a screener and scheduler (10), and the chat agent and briefings (10A).
 
 ## Running it
 
@@ -46,7 +47,58 @@ Every phase has an **interactive tour** inside the app, so you can see what it a
 
 ---
 
-## Phase 7: forecast models, tested honestly (NEW)
+## Phase 8: machine learning, ensembles and the Model Lab (NEW)
+
+> **Tour:** open the **Tour** menu in the top bar and pick "Phase 8". It walks through the Models page and the new Model Lab.
+
+### What's new
+
+- **Machine-learning models:** `lgbm` (LightGBM), `xgb` (XGBoost), `rf` (random forest) and `logit` (regularised logistic regression) on about 45 price-derived features.
+- **News-aware models:** `lgbm_sentiment` (news only) and `lgbm_combined` (price + news), plus an **ablation** panel that asks whether news adds anything.
+- **Deep models (experimental):** GRU and LSTM, and a GRU trained on several stocks at once. They need PyTorch (`uv sync --extra deep`) and are marked unavailable without it.
+- **Ensemble:** a weighted blend of the models you picked.
+- **Interpretation:** SHAP, permutation importance and partial dependence.
+- **Model Lab** (`/s/SYMBOL/lab`): sortable leaderboard, equity curves, skill decay, calibration overlay, rolling accuracy and IC, confusion matrices, and a registry with a drift check.
+
+### Where to find it
+
+Open any stock, then **Models** (pick models from the grouped list, keep "ensemble of my picks" ticked, run). The **Model Lab** tab shows results at the chosen horizon.
+
+### Try it
+
+1. Models tab: tick `lgbm`, `logit`, `rf`, keep the walk-forward test on, click Run.
+2. Read the consensus table, then "Why does the model say that?".
+3. Open the Model Lab, sort the leaderboard by *Skill*, toggle models in the charts.
+4. Run again later and check the registry table for a new version.
+
+### How it works (engineering view)
+
+- **Features must be stationary.** Raw price levels drift, so the model sees returns, ratios and z-scores. Think of it as normalising inputs so training and production see the same distribution.
+- **Labels overlap.** A 5-day-ahead label uses the next 5 days, so neighbouring rows share information. Training rows whose label window reaches past the training end are purged, and a gap equal to the horizon separates fit from validation. This is the same idea as avoiding leakage between train and test splits in any time-series pipeline.
+- **Purged K-fold with embargo** is used for hyperparameter tuning (Optuna, deliberately tiny), for the same reason.
+- **Shrinkage toward the base rate.** Each model's probabilities are blended with the training base rate. The blend weight is picked on held-out days using the *one-standard-error rule*: pick the simplest (most shrunk) setting whose loss is within one standard error of the best. This guards against the winner's curse, where the best of many noisy options looks good by luck. The result is shown as **trust in model**. Noise gets about 0%.
+- **Quantile forecasts:** LightGBM/XGBoost quantile regression, or residual quantiles for forest/ridge, validated so quantiles never cross and stay within sane bounds.
+- **SHAP** splits one prediction into additive per-feature contributions (like a stack trace of blame for a number). **Permutation importance** shuffles a feature on held-out rows and measures damage. **Partial dependence** sweeps one input and averages the output.
+- **Ensemble:** weights come from each model's *recent resolved* forecasts only, using a lag so a forecast's outcome is never used before it is known. The ensemble counts as one more model tried in the multiple-testing correction.
+- **Ablation:** three models with identical machinery but different inputs, compared with a paired Diebold-Mariano test. Sentiment comes only from the non-LLM scorer; LLM output is forward-only.
+- **Registry:** every run is stored with data window, parameters and an input hash, so you can compare versions.
+
+### Trading and ML ideas explained
+
+- **Feature importance is not causation.** A model leaning on a feature means it helped in the past data, not that the feature moves price.
+- **Calibration:** when it says 70%, is it right 70% of the time?
+- **Decay:** edges tend to fade once found. The cumulative skill chart makes that visible.
+- **Equity curve diagnostic:** "long when the model says up" with no costs. Treat it as a sanity check; the real backtest with Indian costs is Phase 9.
+
+### How far to trust it
+
+- All development data in this sandbox was synthetic; real-market behaviour is unverified.
+- Deep models are experimental and untested on real data.
+- News history is usually short, which limits the ablation. The panel says so.
+- Triple-barrier labels and fractional differentiation exist as tested library functions but are not used by the models yet.
+- Expect most models to show "no demonstrated edge". That is the honest, normal result.
+
+## Phase 7: forecast models, tested honestly
 
 > **Tour:** open the **Tour** menu in the top bar and pick "Phase 7", or use the buttons at the top of this page. It walks through the real Models page.
 
@@ -577,4 +629,6 @@ Yahoo Finance is an unofficial source that can break without notice, which is wh
 | **Support / resistance** | Price levels where the price has repeatedly turned up / down |
 | **Volatility** | How much price moves, usually the standard deviation of returns |
 | **VWAP** | Average price weighted by volume traded |
+| **Ensemble** | A weighted blend of several models' forecasts (Phase 8) |
+| **SHAP** | Splits one prediction into per-feature contributions (Phase 8) |
 | **Walk-forward validation** | Training on the past, testing on the next unseen period, then rolling forward (Phase 7) |

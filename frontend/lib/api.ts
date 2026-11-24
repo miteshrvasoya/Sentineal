@@ -72,13 +72,15 @@ export const api = {
   correlation: () => get<Corr>("/risk/correlation"),
   watchSummary: () => get<WatchRow[]>("/watchlist/summary"),
   modelCatalog: () => get<{ models: ModelInfo[]; horizons: number[]; note: string }>("/models"),
-  runModels: (symbol: string, body: { models: string[]; horizon: number; evaluate: boolean; mode: string; fast: boolean; levels: number[] }) =>
+  runModels: (symbol: string, body: { models: string[]; horizon: number; evaluate: boolean; mode: string; fast: boolean; levels: number[]; ensemble: boolean }) =>
     postJson<Job>(`/models/${encodeURIComponent(symbol)}/run`, body),
   job: (id: string) => get<Job>(`/jobs/${id}`),
   analysis: (symbol: string, horizon: number) => get<AnalysisResp>(`/analysis/${encodeURIComponent(symbol)}?horizon=${horizon}`),
   evaluation: (symbol: string, horizon: number) => get<EvalResp>(`/models/${encodeURIComponent(symbol)}/evaluation?horizon=${horizon}`),
   seasonality: (symbol: string) => get<Seasonality>(`/analysis/seasonality/${encodeURIComponent(symbol)}`),
   pairs: (symbol: string) => get<Pairs>(`/analysis/pairs/${encodeURIComponent(symbol)}`),
+  ablation: (symbol: string, horizon: number) => get<Ablation>(`/models/${encodeURIComponent(symbol)}/ablation?horizon=${horizon}`),
+  registry: (symbol: string) => get<RegistryRow[]>(`/models/${encodeURIComponent(symbol)}/registry`),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -203,7 +205,8 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export type ModelInfo = { name: string; kind: string; description: string; experimental: boolean; baseline: boolean };
+export type ModelInfo = { name: string; kind: string; group: string; description: string; experimental: boolean; baseline: boolean;
+  available: boolean; unavailable_reason: string | null; needs: string | null };
 export type Job = {
   id: string; kind: string; symbol: string; status: "queued" | "running" | "done" | "failed"; progress: number; duration_s: number | null;
   error: string | null; result: null | { evaluated: boolean; warnings: string[]; elapsed_s: number; models: string[];
@@ -218,12 +221,16 @@ export type ModelViewT = {
   version: string; kind: string; vote: "up" | "flat" | "down"; conviction: number; drivers: { name: string; value: string | number }[]; notes: string[];
   training_window: { start: string; end: string; n: number };
   extras: { fan?: FanData; vol_cone?: VolCone; vol_forecast_annualised?: number; regime_probs?: Record<string, number>; current_regime?: string;
-    regime_table?: RegimeRow[]; timeline?: { dates: string[]; regime: number[]; prob: number[]; labels: string[] } };
+    regime_table?: RegimeRow[]; timeline?: { dates: string[]; regime: number[]; prob: number[]; labels: string[] };
+    weights?: Record<string, number>; calibration?: { raw: number; calibrated: number; trust_in_model: number; base_rate_loss: number };
+    shap_global?: { feature: string; mean_abs_shap: number }[]; shap_now?: { feature: string; value: number | null; toward_up: number; toward_down: number }[];
+    shap_note?: string; permutation_importance?: { feature: string; importance: number; std: number }[];
+    partial_dependence?: { feature: string; grid: number[]; p_up: number[] }[] };
 };
 export type ConsensusRow = { name: string; kind: string; vote: string; p_up: number; p_flat: number; p_down: number; conviction: number; net: number;
   verdict: string | null; verdict_reason: string | null; hit_rate: number | null; naive_rate: number | null; brier_skill: number | null;
   n_effective: number | null; edge: boolean; median_return: number | null };
-export type Consensus = { models: ConsensusRow[]; baselines: ConsensusRow[]; votes: Record<string, number>; n_models: number; n_edge: number;
+export type Consensus = { models: ConsensusRow[]; baselines: ConsensusRow[]; ensemble: ConsensusRow | null; votes: Record<string, number>; n_models: number; n_edge: number;
   majority: string | null; majority_share: number | null; spread: number | null; disagreement: "low" | "medium" | "high" | null;
   conviction: "low" | "moderate" | null; headline: string; how_to_read?: string };
 export type AnalysisResp = { symbol: string; horizon: number; asof: string; consensus: Consensus; views: Record<string, ModelViewT>;
@@ -237,6 +244,7 @@ export type EvalDetail = {
   point: { mase: number | null; mae: number; mae_naive: number; note: string };
   rank_ic: { ic: number | null; p: number | null; rolling: { date: string; ic: number | null }[] };
   cum_skill?: { date: string; v: number }[]; rolling_accuracy: { date: string; v: number }[];
+  equity?: { series: { date: string; v: number }[]; buy_hold: { date: string; v: number }[]; exposure: number; total_return: number; buy_hold_return: number; note: string };
 };
 export type EvalResp = {
   symbol: string; horizon: number; notes: string[]; period: { first: string; last: string; forecasts: number; mode: string; stride: number };
@@ -256,3 +264,13 @@ export type PairRow = { peer: string; n: number; p?: number; p_bonferroni?: numb
   p_first_half?: number | null; p_second_half?: number | null; stable?: boolean; candidate?: boolean; skipped?: string };
 export type Pairs = { target: string; tested: number; peers: PairRow[]; best: string | null; notes: string[];
   best_spread: null | { dates: string[]; spread: number[]; mean: number; std: number } };
+
+
+export type Ablation = {
+  symbol: string; horizon: number; reading: string; notes: string[];
+  rows: { model: string; label: string; brier: number; brier_skill: number | null; verdict: string | null; hit_rate: number | null; n_effective: number; failures: number }[];
+  paired: { n: number; brier_gain: number | null; dm_p: number | null; adds_value: boolean };
+  news_coverage: { days_span: number; days_with_news: number };
+};
+export type RegistryRow = { model: string; horizon: number; version: number; trained_at: number; train_start: string; train_end: string; n_train: number;
+  feature_hash: string; verdict: string | null; brier_skill: number | null; hit_rate: number | null; params: Record<string, unknown> };

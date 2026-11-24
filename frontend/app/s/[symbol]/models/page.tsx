@@ -1,8 +1,9 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Fragment, Suspense, useEffect, useState } from "react";
-import { CalibrationChart, ConeChart, FanChart, ProbBar, RegimeStrip } from "@/components/ModelCharts";
+import { BarList, CalibrationChart, ConeChart, FanChart, PdpChart, ProbBar, PushBars, RegimeStrip } from "@/components/ModelCharts";
 import SvgLine from "@/components/SvgLine";
 import SymbolTabs from "@/components/SymbolTabs";
 import { api, type ConsensusRow, type EvalDetail, type ModelViewT, type SeasonRow } from "@/lib/api";
@@ -75,7 +76,8 @@ function ModelRow({ r, v, baseline, open, toggle, exp }: { r: ConsensusRow; v?: 
     <>
       <tr className="cursor-pointer border-t border-slate-200 align-middle hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900" onClick={toggle}>
         <td className="py-1.5 pr-2"><span className="font-medium">{r.name}</span>{exp && <span className="ml-1 rounded bg-violet-600 px-1 text-[10px] text-white">experimental</span>}
-          {baseline && <span className="ml-1 text-[10px] text-slate-500">baseline</span>}</td>
+          {baseline && <span className="ml-1 text-[10px] text-slate-500">baseline</span>}
+          {r.name === "ensemble" && <span className="ml-1 rounded bg-indigo-600 px-1 text-[10px] text-white">weighted blend</span>}</td>
         <td className="w-56 pr-3"><ProbBar up={r.p_up} flat={r.p_flat} down={r.p_down} /></td>
         <td className="pr-2 text-center"><span className={r.vote === "up" ? "text-up" : r.vote === "down" ? "text-down" : "text-slate-500"}>{r.vote}</span></td>
         <td className="pr-2 text-xs tabular-nums text-slate-600 dark:text-slate-400">{v ? `${sgn(v.quantiles["5"])} to ${sgn(v.quantiles["95"])}` : ""}</td>
@@ -95,6 +97,26 @@ function ModelRow({ r, v, baseline, open, toggle, exp }: { r: ConsensusRow; v?: 
   );
 }
 
+function AblationPanel({ symbol, horizon }: { symbol: string; horizon: number }) {
+  const q = useQuery({ queryKey: ["ablation", symbol, horizon], queryFn: () => api.ablation(symbol, horizon), retry: false });
+  return (
+    <section className={card} data-tour="ablation">
+      <h2 className="text-lg font-semibold">Does news add anything to price? (ablation)</h2>
+      {q.error && <p className="text-sm text-slate-500">Not run yet. Pick <b>lgbm</b>, <b>lgbm_sentiment</b> and <b>lgbm_combined</b> together with the walk-forward test (needs stored news for this stock). The three differ only in their inputs: price only, news only, price + news. <span className="text-xs">({(q.error as Error).message})</span></p>}
+      {q.data && (
+        <>
+          <p className="mb-2 text-sm font-medium">{q.data.reading}</p>
+          <table className="w-full text-sm tabular-nums"><thead className="text-left text-xs text-slate-500"><tr><th>Inputs</th><th>Model</th><th>Brier</th><th>Skill vs baseline</th><th>Verdict</th><th>Forecasts</th></tr></thead>
+            <tbody>{q.data.rows.map((r) => <tr key={r.model} className="border-t border-slate-200 dark:border-slate-800"><td className="py-1">{r.label}</td><td>{r.model}</td><td>{r.brier.toFixed(4)}</td>
+              <td>{r.brier_skill === null ? "" : sgn(r.brier_skill)}</td><td><Verdict v={r.verdict} /></td><td>{r.n_effective.toFixed(0)}{r.failures ? ` (${r.failures} failed)` : ""}</td></tr>)}</tbody></table>
+          <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">Paired test, price + news vs price only, on {q.data.paired.n} shared forecasts: average Brier gain {q.data.paired.brier_gain === null ? "n/a" : q.data.paired.brier_gain.toFixed(4)}, p = {q.data.paired.dm_p === null ? "n/a" : q.data.paired.dm_p.toFixed(3)}. News coverage: {q.data.news_coverage.days_with_news} days with articles over a {q.data.news_coverage.days_span}-day span.</p>
+          <ul className="mt-1 list-disc pl-5 text-xs text-slate-500">{q.data.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+        </>
+      )}
+    </section>
+  );
+}
+
 function View() {
   const symbol = decodeURIComponent(String(useParams().symbol)).toUpperCase();
   const qc = useQueryClient();
@@ -102,6 +124,8 @@ function View() {
   const [picked, setPicked] = useState<string[]>(DEFAULT_MODELS);
   const [evaluate, setEvaluate] = useState(true);
   const [fast, setFast] = useState(false);
+  const [ensemble, setEnsemble] = useState(true);
+  const [interpName, setInterpName] = useState<string | null>(null);
   const [mode, setMode] = useState("expanding");
   const [levels, setLevels] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
@@ -115,7 +139,7 @@ function View() {
   const evalq = useQuery({ queryKey: ["evaluation", symbol, horizon], queryFn: () => api.evaluation(symbol, horizon), retry: false });
   const run = useMutation({
     mutationFn: () => api.runModels(symbol, { models: picked, horizon, evaluate, mode, fast,
-      levels: levels.split(/[ ,]+/).map(Number).filter((n) => n > 0 && Number.isFinite(n)) }),
+      levels: levels.split(/[ ,]+/).map(Number).filter((n) => n > 0 && Number.isFinite(n)), ensemble }),
     onSuccess: (j) => setJobId(j.id),
   });
   const job = useQuery({ queryKey: ["job", jobId], queryFn: () => api.job(jobId as string), enabled: !!jobId,
@@ -146,7 +170,8 @@ function View() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold">{symbol}</h1>
-        <span className="rounded bg-violet-600 px-2 py-0.5 text-xs text-white">Forecast models are analysis tools, not predictions</span></div>
+        <span className="rounded bg-violet-600 px-2 py-0.5 text-xs text-white">Forecast models are analysis tools, not predictions</span>
+        <Link href={`/s/${encodeURIComponent(symbol)}/lab`} className="ml-auto text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-300">Open the Model Lab →</Link></div>
       <SymbolTabs />
 
       <section className={card} data-tour="models-controls">
@@ -154,9 +179,18 @@ function View() {
         <div className="grid gap-4 md:grid-cols-[1fr_auto]">
           <div>
             <p className="mb-1 text-xs text-slate-500">Pick models (the three baselines always run too: they are the yardstick every model must beat).</p>
-            <div className="flex flex-wrap gap-1.5">{cat.data?.models.filter((m) => !m.baseline).map((m) => (
-              <label key={m.name} title={m.description} className={`cursor-pointer rounded border px-2 py-1 text-sm ${picked.includes(m.name) ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-950" : "border-slate-300 dark:border-slate-700"}`}>
-                <input type="checkbox" className="mr-1" checked={picked.includes(m.name)} onChange={() => toggle(m.name)} />{m.name}</label>))}</div>
+            <div className="space-y-2" data-tour="model-groups">
+              {["statistical", "machine learning", "deep (experimental)"].map((g) => (
+                <div key={g}>
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g}</h3>
+                  <div className="mt-0.5 flex flex-wrap gap-1.5">{cat.data?.models.filter((m) => m.group === g).map((m) => (
+                    <label key={m.name} title={m.available ? m.description : `${m.description}\n\nUNAVAILABLE: ${m.unavailable_reason}`}
+                      className={`rounded border px-2 py-1 text-sm ${!m.available ? "cursor-not-allowed border-dashed border-slate-300 text-slate-400 line-through dark:border-slate-700" : picked.includes(m.name) ? "cursor-pointer border-indigo-600 bg-indigo-50 dark:bg-indigo-950" : "cursor-pointer border-slate-300 dark:border-slate-700"}`}>
+                      <input type="checkbox" className="mr-1" disabled={!m.available} checked={picked.includes(m.name) && m.available} onChange={() => toggle(m.name)} />{m.name}
+                      {m.needs === "sentiment" && <span className="ml-1 text-[10px] text-amber-600 no-underline" title="Needs stored news for this stock">news</span>}
+                      {m.needs === "pool" && <span className="ml-1 text-[10px] text-amber-600" title="Trains on other stored stocks too">pooled</span>}</label>))}</div>
+                </div>))}
+            </div>
             {cat.error && <p role="alert" className="text-sm text-red-500">{(cat.error as Error).message}</p>}
           </div>
           <div className="space-y-1.5 text-sm">
@@ -168,6 +202,7 @@ function View() {
                 <option value="expanding">expanding (all past data)</option><option value="rolling">rolling (last ~3 years)</option></select></label>
             <label className="flex items-center gap-1"><input type="checkbox" checked={evaluate} onChange={(e) => setEvaluate(e.target.checked)} /> walk-forward test (recommended)</label>
             <label className="flex items-center gap-1" title="Fewer simulations and refits: much faster, a little noisier"><input type="checkbox" checked={fast} onChange={(e) => setFast(e.target.checked)} /> quick mode</label>
+            <label className="flex items-center gap-1" title="Blend the models you pick, weighted by how well each has done recently out of sample"><input type="checkbox" checked={ensemble} onChange={(e) => setEnsemble(e.target.checked)} /> ensemble of my picks</label>
           </div>
         </div>
         <label className="mt-2 block text-sm">Price levels to check (optional, comma separated)
@@ -206,6 +241,7 @@ function View() {
                 <thead className="text-left text-xs text-slate-500"><tr><th>Model</th><th>Outlook (up / flat / down)</th><th>Vote</th><th>90% range</th><th title="Up/down calls that were right, vs always guessing the commoner direction">Hit rate vs naive</th><th title="Brier-score improvement over the base-rate baseline">Skill</th><th>Track record</th><th /></tr></thead>
                 <tbody>
                   {cons.models.map((r) => <ModelRow key={r.name} r={r} v={a.views[r.name]} open={open === r.name} toggle={() => setOpen(open === r.name ? null : r.name)} exp={!!modelInfo(r.name)?.experimental} />)}
+                  {cons.ensemble && <ModelRow key="ensemble" r={cons.ensemble} v={a.views.ensemble} open={open === "ensemble"} toggle={() => setOpen(open === "ensemble" ? null : "ensemble")} exp={false} />}
                   {cons.baselines.map((r) => <ModelRow key={r.name} r={r} v={a.views[r.name]} baseline open={open === r.name} toggle={() => setOpen(open === r.name ? null : r.name)} exp={false} />)}
                 </tbody>
               </table>
@@ -240,6 +276,35 @@ function View() {
             </section>)}
         </>
       )}
+
+      {a && (() => {
+        const ml = Object.values(a.views).filter((v) => v.extras.permutation_importance);
+        const cur = ml.find((v) => v.name === interpName) ?? ml[0];
+        if (!cur) return null;
+        const ex = cur.extras;
+        return (
+          <section className={card} data-tour="interpret">
+            <div className="mb-2 flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">Why does the model say that?</h2>
+              <select value={cur.name} onChange={(e) => setInterpName(e.target.value)} className="rounded border border-slate-300 bg-white px-1 text-xs dark:border-slate-700 dark:bg-slate-900" aria-label="Model to explain">{ml.map((v) => <option key={v.name}>{v.name}</option>)}</select>
+              {ex.calibration && <span className="rounded bg-slate-200 px-2 py-0.5 text-xs dark:bg-slate-800" title="How much of the model's probabilities survive blending with the base rate. Chosen on held-out days; low = the model showed no reliable skill.">trust in model: {(ex.calibration.trust_in_model * 100).toFixed(0)}%</span>}</div>
+            <div className="grid gap-5 md:grid-cols-2">
+              <div><h3 className="mb-1 text-sm font-semibold">What pushed today&apos;s forecast</h3>
+                {ex.shap_now ? <PushBars items={ex.shap_now.map((d) => ({ label: `${d.feature}${d.value === null ? "" : ` = ${d.value.toPrecision(3)}`}`, value: d.toward_up }))} />
+                  : <ul className="list-disc pl-5 text-xs">{cur.drivers.map((d) => <li key={d.name}>{d.name}: {d.value}</li>)}</ul>}
+                <p className="mt-1 text-[11px] text-slate-500">Green pushes toward UP, red toward DOWN (SHAP values: each feature&apos;s share of this one prediction).</p></div>
+              <div><h3 className="mb-1 text-sm font-semibold">{ex.shap_global ? "What matters overall (mean |SHAP|)" : "What matters overall"}</h3>
+                <BarList items={(ex.shap_global ? ex.shap_global.map((d) => ({ label: d.feature, value: d.mean_abs_shap })) : (ex.permutation_importance ?? []).map((d) => ({ label: d.feature, value: d.importance }))).slice(0, 10)} /></div>
+              <div><h3 className="mb-1 text-sm font-semibold">Permutation importance (held-out days)</h3>
+                <BarList color="#f59e0b" digits={4} items={(ex.permutation_importance ?? []).slice(0, 8).map((d) => ({ label: d.feature, value: d.importance }))} />
+                <p className="mt-1 text-[11px] text-slate-500">How much worse the model gets on days it never trained on when one feature is shuffled. Near zero or negative: the feature is not really helping.</p></div>
+              <div><h3 className="mb-1 text-sm font-semibold">Partial dependence of P(up)</h3>
+                <div className="flex flex-wrap gap-3">{(ex.partial_dependence ?? []).map((d) => <PdpChart key={d.feature} feature={d.feature} grid={d.grid} p_up={d.p_up} />)}</div>
+                <p className="mt-1 text-[11px] text-slate-500">Average predicted chance of UP as one feature moves across its usual range, others held as observed.</p></div>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">{ex.shap_note} These explain what the model learned, which is not the same as what drives the market: with weak signals the explanation can be a story about noise. Check the walk-forward verdict first.</p>
+          </section>);
+      })()}
+      <AblationPanel symbol={symbol} horizon={horizon} />
 
       {evalq.data && (
         <section className={card} data-tour="leaderboard">
