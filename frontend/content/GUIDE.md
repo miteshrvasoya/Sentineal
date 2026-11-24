@@ -25,7 +25,7 @@ Coming next: fundamentals and risk metrics (Phase 6), forecasting models with ho
 make install     # backend (uv) + frontend (npm)
 make dev         # backend :8000 (docs at /docs), frontend :3000
 make seed        # optional: 5y of daily prices + 90 days of news for the default stocks
-make test        # 190+ backend tests, frontend type-check
+make test        # 188 backend tests, frontend type-check
 ```
 
 Copy `.env.example` to `.env` to add keys. **Everything works with zero keys**: Yahoo Finance for prices, Google News and GDELT for news, VADER for sentiment, and no LLM features. Each key you add lights up more.
