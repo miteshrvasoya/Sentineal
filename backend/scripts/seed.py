@@ -5,14 +5,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.config import get_settings  # noqa: E402
 from app.api.routes import symbol_table  # noqa: E402
+from app.config import get_settings  # noqa: E402
 from app.data import db  # noqa: E402
+from app.data.ingest import backfill_many  # noqa: E402
 from app.data.news_ingest import ingest_symbol  # noqa: E402
+from app.deps import get_news_router, get_router  # noqa: E402
 from app.nlp.entities import get_resolver  # noqa: E402
 from app.nlp.factory import get_scorer  # noqa: E402
-from app.data.ingest import backfill_many  # noqa: E402
-from app.deps import get_news_router, get_router  # noqa: E402
 
 
 async def main() -> None:
