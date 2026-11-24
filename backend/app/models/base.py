@@ -133,7 +133,14 @@ class Model(abc.ABC):
     experimental = False
     version = "v1"
 
-    def __init__(self, fast: bool = False, seed: int = 0) -> None:
+    needs: str | None = None          # extra input the model requires: "sentiment" | "pool" | None
+
+    @classmethod
+    def availability(cls) -> tuple[bool, str]:
+        """(usable, reason if not). Overridden by models with optional dependencies."""
+        return True, ""
+
+    def __init__(self, fast: bool = False, seed: int = 0, **kw: Any) -> None:
         self.fast, self.seed = fast, seed
         self.n_sims = 400 if fast else 2000
         self._fitted = False

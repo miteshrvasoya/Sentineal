@@ -145,6 +145,13 @@ def evaluate(preds: pd.DataFrame, base: pd.DataFrame | None = None, is_baseline:
         out["brier_skill"] = float(1 - brier.mean() / bb.mean()) if bb.mean() > 0 else None
         out.update(diebold_mariano(brier, bb, lag))
         out["cum_skill"] = _series(preds.index, np.cumsum(bb - brier))        # rising line = beating the baseline over time
+    ret = np.expm1(preds["actual"].to_numpy())
+    pos = (preds["vote"] == "up").to_numpy().astype(float)
+    eq, hold = 100 * np.cumprod(1 + ret * pos), 100 * np.cumprod(1 + ret)
+    out["equity"] = {"series": _series(preds.index, eq), "buy_hold": _series(preds.index, hold), "exposure": float(pos.mean()),
+                     "total_return": float(eq[-1] / 100 - 1), "buy_hold_return": float(hold[-1] / 100 - 1),
+                     "note": "Diagnostic only: long when the model's top vote is UP, otherwise in cash; one trade per forecast; NO costs or slippage (Phase 9 adds those)."}
+    out["brier_series"] = [{"date": str(d.date()), "v": float(v)} for d, v in zip(preds.index, brier, strict=True)]
     roll_hit = (preds["label"] == preds["vote"]).astype(float).rolling(max(10, min(63, n // 3))).mean().dropna()
     out["rolling_accuracy"] = _series(roll_hit.index, roll_hit.to_numpy())
     return out

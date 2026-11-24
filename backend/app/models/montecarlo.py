@@ -42,7 +42,7 @@ def fan_and_touch(last: float, paths: np.ndarray, levels: list[float] | None) ->
 class _MC(Model):
     window = 252
 
-    def __init__(self, fast: bool = False, seed: int = 0) -> None:
+    def __init__(self, fast: bool = False, seed: int = 0, **kw: Any) -> None:
         super().__init__(fast, seed)
         self._info: dict[str, Any] = {}
 

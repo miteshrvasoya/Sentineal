@@ -36,7 +36,7 @@ class Arima(Model):
     name = "arima"
     description = "ARIMA(p,0,q) on daily returns, order chosen by AIC. Simulates the h-day return distribution."
 
-    def __init__(self, fast: bool = False, seed: int = 0) -> None:
+    def __init__(self, fast: bool = False, seed: int = 0, **kw: Any) -> None:
         super().__init__(fast, seed)
         self.order: tuple[int, int, int] = (0, 0, 0)
         self.fit_params: Any = None
@@ -88,7 +88,7 @@ class Ets(Model):
     name = "ets"
     description = "Holt-Winters style damped-trend exponential smoothing on log price; residual noise gives the spread."
 
-    def __init__(self, fast: bool = False, seed: int = 0) -> None:
+    def __init__(self, fast: bool = False, seed: int = 0, **kw: Any) -> None:
         super().__init__(fast, seed)
         self.alpha = self.beta = self.phi = 0.0
         self._info: dict[str, Any] = {}

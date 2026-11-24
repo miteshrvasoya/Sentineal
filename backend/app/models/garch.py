@@ -34,7 +34,7 @@ class _Garch(Model):
     spec: dict[str, Any] = {}
     label = ""
 
-    def __init__(self, fast: bool = False, seed: int = 0) -> None:
+    def __init__(self, fast: bool = False, seed: int = 0, **kw: Any) -> None:
         super().__init__(fast, seed)
         self.fit_params: pd.Series | None = None
         self._info: dict[str, Any] = {}

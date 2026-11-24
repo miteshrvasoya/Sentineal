@@ -28,11 +28,17 @@ dependencies = [
   "statsmodels>=0.15.0",
   "arch>=9.0.0",
   "hmmlearn>=0.3.3",
+  "lightgbm>=4.7.0",
+  "xgboost>=3.2.0",
+  "optuna>=5.1.0",
+  "shap>=0.51.0",
 ]
 
 [project.optional-dependencies]
 # Local FinBERT (large download: torch). Without it the app falls back to VADER.
 nlp = ["transformers>=4.40", "torch>=2.2"]
+# Experimental LSTM/GRU model (CPU PyTorch; large download). Without it the deep model reports "unavailable".
+deep = ["torch>=2.2"]
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10"]

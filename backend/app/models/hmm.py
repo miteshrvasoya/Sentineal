@@ -41,7 +41,7 @@ class HmmRegime(Model):
     name = "hmm_regime"
     description = "3-state Gaussian hidden Markov model: current regime probabilities and a regime-mixture forecast."
 
-    def __init__(self, fast: bool = False, seed: int = 0) -> None:
+    def __init__(self, fast: bool = False, seed: int = 0, **kw: Any) -> None:
         super().__init__(fast, seed)
         self.pi = self.A = self.means = self.covs = None
         self.order: list[int] = []

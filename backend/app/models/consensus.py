@@ -8,7 +8,7 @@ import numpy as np
 
 
 def build(views: dict[str, dict], metrics: dict[str, dict], baselines: set[str]) -> dict:
-    rows, base_rows = [], []
+    rows, base_rows, ens_row = [], [], None
     for name, v in views.items():
         m = metrics.get(name) or {}
         d = m.get("directional") or {}
@@ -16,10 +16,13 @@ def build(views: dict[str, dict], metrics: dict[str, dict], baselines: set[str])
                "conviction": v["conviction"], "net": v["p_up"] - v["p_down"], "verdict": m.get("verdict"), "verdict_reason": m.get("verdict_reason"),
                "hit_rate": d.get("hit_rate"), "naive_rate": d.get("naive_rate"), "brier_skill": m.get("brier_skill"),
                "n_effective": m.get("n_effective"), "edge": m.get("verdict") == "demonstrated edge", "median_return": v["quantiles"].get("50")}
-        (base_rows if name in baselines else rows).append(row)
+        if name == "ensemble":
+            ens_row = row
+        else:
+            (base_rows if name in baselines else rows).append(row)
     votes = {k: sum(1 for r in rows if r["vote"] == k) for k in ("up", "flat", "down")}
     n = len(rows)
-    out: dict = {"models": rows, "baselines": base_rows, "votes": votes, "n_models": n,
+    out: dict = {"models": rows, "baselines": base_rows, "ensemble": ens_row, "votes": votes, "n_models": n,
                  "n_edge": sum(1 for r in rows if r["edge"])}
     if n == 0:
         out.update(majority=None, majority_share=None, spread=None, disagreement=None, conviction=None, headline="No models have been run yet.")

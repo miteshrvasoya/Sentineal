@@ -12,26 +12,44 @@ from app.data.models import ModelRun
 from app.models.arima import Arima, Ets
 from app.models.base import Model, ModelView
 from app.models.baselines import BaseRate, BuyHold, MaRule
+from app.models.deep import DeepGru, DeepGruPooled, DeepLstm
 from app.models.garch import Egarch, Garch, GjrGarch
 from app.models.hmm import HmmRegime
+from app.models.ml import Lgbm, LgbmCombined, LgbmSentiment, Logit, RandomForest, Xgb
 from app.models.montecarlo import McBootstrap, McGbm
 
 MODEL_CLASSES: dict[str, type[Model]] = {c.name: c for c in (
-    Arima, Ets, Garch, GjrGarch, Egarch, McGbm, McBootstrap, HmmRegime, BaseRate, BuyHold, MaRule)}
+    Arima, Ets, Garch, GjrGarch, Egarch, McGbm, McBootstrap, HmmRegime, Lgbm, Xgb, RandomForest, Logit, LgbmSentiment, LgbmCombined,
+    DeepGru, DeepLstm, DeepGruPooled, BaseRate, BuyHold, MaRule)}
 BASELINES = {"base_rate", "buy_hold", "ma_rule"}
 FEATURE_HASH = "ohlcv-close-v1"       # statistical models see daily closes only; ML models (Phase 8) record their feature hash here
 HORIZONS = (1, 5, 10, 21, 42, 63)
 
 
-def build(name: str, fast: bool = False, seed: int = 0) -> Model:
+def build(name: str, fast: bool = False, seed: int = 0, horizon: int = 5, aux: dict | None = None) -> Model:
+    """`horizon` and `aux` ({"sentiment": DataFrame, "pool": {symbol: OHLCV}}) are used by the ML and deep models only."""
     if name not in MODEL_CLASSES:
         raise KeyError(f"unknown model {name!r}; available: {sorted(MODEL_CLASSES)}")
-    return MODEL_CLASSES[name](fast=fast, seed=seed)
+    return MODEL_CLASSES[name](fast=fast, seed=seed, horizon=horizon, aux=aux)
+
+
+ENSEMBLE = "ensemble"
+
+
+def group_of(cls: type[Model]) -> str:
+    return {"statistical": "statistical", "baseline": "baseline", "ml": "machine learning", "deep": "deep (experimental)"}.get(cls.kind, cls.kind)
 
 
 def catalogue() -> list[dict[str, Any]]:
-    return [{"name": n, "kind": c.kind, "description": c.description, "experimental": c.experimental, "baseline": n in BASELINES}
-            for n, c in MODEL_CLASSES.items()]
+    out = []
+    for n, c in MODEL_CLASSES.items():
+        ok, why = c.availability()
+        out.append({"name": n, "kind": c.kind, "group": group_of(c), "description": c.description, "experimental": c.experimental,
+                    "baseline": n in BASELINES, "available": ok, "unavailable_reason": why or None, "needs": c.needs})
+    out.append({"name": ENSEMBLE, "kind": "ensemble", "group": "ensemble", "baseline": False, "experimental": False, "available": True,
+                "unavailable_reason": None, "needs": None,
+                "description": "Combines the models you pick, weighted by their recent out-of-sample performance (automatic when 2+ models are chosen)."})
+    return out
 
 
 def next_version(db: Session, symbol: str, model: str) -> int:

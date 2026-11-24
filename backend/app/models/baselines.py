@@ -41,7 +41,7 @@ def _outcomes(close: pd.Series, h: int) -> pd.DataFrame:
 class _Base(Model):
     kind = "baseline"
 
-    def __init__(self, fast: bool = False, seed: int = 0) -> None:
+    def __init__(self, fast: bool = False, seed: int = 0, **kw: Any) -> None:
         super().__init__(fast, seed)
         self._train: pd.DataFrame | None = None
         self._cache: dict[int, Any] = {}

@@ -132,7 +132,8 @@ def test_registry_versions_and_latest(mem):
         assert latest["base_rate"].version == 2 and latest["base_rate"].feature_hash == reg.FEATURE_HASH
         assert reg.latest_runs(db, "TCS", 21) == {}
     names = {c["name"] for c in reg.catalogue()}
-    assert {"arima", "ets", "garch", "gjr_garch", "egarch", "mc_gbm", "mc_bootstrap", "hmm_regime", "base_rate", "buy_hold", "ma_rule"} == names
+    assert {"arima", "ets", "garch", "gjr_garch", "egarch", "mc_gbm", "mc_bootstrap", "hmm_regime", "base_rate", "buy_hold", "ma_rule"} <= names
+    assert {"lgbm", "xgb", "rf", "logit", "lgbm_sentiment", "lgbm_combined", "deep_gru", "deep_lstm", "deep_gru_pooled", "ensemble"} <= names
     assert all(c["baseline"] == (c["name"] in reg.BASELINES) for c in reg.catalogue())
 
 
@@ -171,7 +172,7 @@ def test_run_models_end_to_end(mem):
     d = prices(800, seed=3)
     progress = []
     out = run_models(session_ctx, "TST", d, ["garch", "mc_gbm"], 5, True, "expanding", True, [float(d.close.iloc[-1]) * 1.05], progress.append)
-    assert out["evaluated"] and set(out["models"]) == {"garch", "mc_gbm", "base_rate", "buy_hold", "ma_rule"} and out["walk_forward"]["forecasts"] >= 30
+    assert out["evaluated"] and set(out["models"]) == {"garch", "mc_gbm", "ensemble", "base_rate", "buy_hold", "ma_rule"} and out["walk_forward"]["forecasts"] >= 30
     assert progress and progress[-1] <= 0.99 and sorted(progress) == progress
     with session_ctx() as db:
         runs = reg.latest_runs(db, "TST", 5)

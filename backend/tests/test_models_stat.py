@@ -35,7 +35,7 @@ def df():
     return prices()
 
 
-ALL = list(reg.MODEL_CLASSES)
+ALL = [n for n, c in reg.MODEL_CLASSES.items() if c.kind in ("statistical", "baseline")]   # ML/deep models: tests/test_ml.py
 
 
 @pytest.mark.parametrize("name", ALL)

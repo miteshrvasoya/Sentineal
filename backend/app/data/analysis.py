@@ -92,3 +92,27 @@ def scorecard_for(db: Session, symbol: str) -> dict[str, Any] | None:
                    up_day=bool(close.iloc[-1] > close.iloc[-2]) if len(close) > 1 else None,
                    sentiment=sentiment_latest(db, symbol), fundamentals=fundamentals_view(db, symbol))
     return {"symbol": symbol, "as_of": str(df.index[-1].date()), "bars": len(df), **out}
+
+
+def sentiment_daily(db: Session, symbol: str, days: int = 1500) -> pd.DataFrame | None:
+    """Daily sentiment features for a stock (default non-LLM scorer; LLM scores are forward-only and never used to train)."""
+    from app.api.routes_news import articles_frame, pick_model  # local import: avoid a module cycle
+    model = pick_model(db)
+    if model is None:
+        return None
+    rows = articles_frame(db, symbol, days, model)
+    if not rows:
+        return None
+    return sf.daily_features(pd.DataFrame([{"published": a.published, "score": s.score} for a, s in rows]))
+
+
+def pool_frames(db: Session, symbol: str, symbols: list[str], limit: int = 6, min_bars: int = 300) -> dict[str, pd.DataFrame]:
+    """Adjusted OHLCV frames of other stored stocks, for the pooled deep model."""
+    out: dict[str, pd.DataFrame] = {}
+    for s in symbols:
+        if s == symbol or len(out) >= limit:
+            continue
+        p = load_prices(db, s, "1d")
+        if len(p) >= min_bars:
+            out[s] = to_frame(apply_adjustment(p))
+    return out
