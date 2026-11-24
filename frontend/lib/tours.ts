@@ -24,11 +24,28 @@ const FD = "/s/{symbol}/fundamentals";
 const MD = "/s/{symbol}/models";
 const LB = "/s/{symbol}/lab";
 const AN = "/s/{symbol}/analyst";
+const BT = "/s/{symbol}/backtest";
 
 
 export const TOURS: TourDef[] = [
   {
-    id: "phase-8a", phase: "Phase 8A", title: "The AI analyst, with guardrails", isNew: true,
+    id: "phase-9", phase: "Phase 9", title: "The backtester, with Indian costs and a luck test", isNew: true,
+    blurb: "Replay a trading rule on history with real-world costs, then find out whether the result could just be luck.",
+    steps: [
+      { title: "Testing a rule against history, honestly", body: "A backtest replays a rule (for example 'buy when the fast average crosses above the slow one') on past prices and reports what it would have earned.\n\nIt is easy to make a backtest look great and mean nothing. This one charges Indian trading costs, never trades on a price it could not have known, keeps the most recent data hidden while choosing parameters, and tests whether the result could be luck." },
+      { route: BT, target: "bt-controls", title: "Choose a rule and the rules of the game", body: "Four classic rules: moving-average crossover, RSI mean reversion, channel breakout and momentum. Set their parameters, the cost model, starting capital and an optional stop-loss.\n\n'Held-out' keeps the last 20 to 40% of history out of parameter selection. 'Search parameters' tries every combination on the earlier part and picks the best, which shows how easily a lucky setting looks brilliant." },
+      { route: BT, target: "bt-verdict", title: "The verdict comes first", body: "A plain-language answer to 'does this survive the tests?', with reasons: too few trades, no held-out period, Sharpe not distinguishable from luck, or failing to beat simply holding the stock after costs.\n\nMost rules on most stocks will say 'no demonstrated edge'. That is the honest, normal outcome.", note: "Appears after you click Run backtest." },
+      { route: BT, target: "bt-equity", title: "Strategy vs buy and hold", body: "Both start at 100. The strategy line is after costs and slippage. If it ends below the dashed buy-and-hold line, the rule would have been worse than doing nothing.", note: "Appears after you click Run backtest." },
+      { route: BT, target: "bt-costs", title: "What costs took", body: "STT, stamp duty, exchange and SEBI charges, GST, the depository fee and slippage, itemised. Frequent trading pays these on every round trip, so a rule that looks fine gross can lose money net. Rates are editable defaults: check your broker's current rate card.", note: "Appears after you click Run backtest." },
+      { route: BT, target: "bt-luck", title: "Skill or luck?", body: "Two tests. The bootstrap reshuffles the strategy's daily returns in blocks thousands of times to show the range of Sharpe ratios luck could produce, and the chance a zero-skill strategy does as well.\n\nThe random-timing test keeps the same trades and time in the market but randomises when they happen. If real timing only ranks around the 50th percentile, it added nothing.", note: "Appears after you click Run backtest." },
+      { route: BT, target: "bt-heldout", title: "In-sample vs held-out", body: "Parameters are chosen on the earlier data only. This table compares that stretch with the held-out stretch the choice never saw. A big drop in Sharpe is overfitting: the rule memorised the past.", note: "Appears after a run with a held-out period." },
+      { route: BT, target: "bt-search", title: "The price of searching", body: "Try 12 settings on random data and the best one will look good by luck. So when you search, the p-value is multiplied by the number of combinations tried.", note: "Appears after a run with 'search parameters' ticked." },
+      { route: BT, target: "bt-review", title: "AI review (optional)", body: "Send the result to the AI reviewer from Phase 8A. The automatic red flags always show; with an API key it also explains how far to trust the result, citing the numbers.", note: "Appears after you click Run backtest." },
+      { title: "That is Phase 9", body: "Takeaway: a backtest is evidence about the past. It becomes evidence about the future only if it survives costs, held-out data and a luck test. Next: the screener, scheduler and the rest of the platform." },
+    ],
+  },
+  {
+    id: "phase-8a", phase: "Phase 8A", title: "The AI analyst, with guardrails",
     blurb: "An optional AI that explains the computed facts in plain language, cites its evidence, and is blocked from inventing numbers or giving advice.",
     steps: [
       { title: "AI that narrates, never calculates", body: "Phase 8A adds four AI helpers: an analyst report, a model explainer, a 'why did it move?' tool and a backtest reviewer.\n\nThe rule behind all of them: Python computes every number, the AI only describes them. Each answer must cite the facts it uses, may only quote numbers that exist in those facts, and is thrown away if it gives advice. They are optional: with no API key everything else still works." },

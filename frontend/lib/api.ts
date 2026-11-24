@@ -85,6 +85,8 @@ export const api = {
   aiExplainModel: (symbol: string, model: string, horizon: number) => postJson<ModelExplanation>(`/ai/explain-model/${encodeURIComponent(symbol)}`, { model, horizon }),
   aiExplainMove: (symbol: string, start?: string, end?: string) => postJson<MoveExplanation>(`/ai/explain-move/${encodeURIComponent(symbol)}`, { start, end }),
   aiBacktestReview: (strategy: string, metrics: Record<string, unknown>) => postJson<BacktestReviewOut>("/ai/backtest-review", { strategy, metrics }),
+  btStrategies: () => get<{ strategies: StrategyInfo[]; cost_presets: Record<string, Record<string, number>>; cost_note: string }>("/backtest/strategies"),
+  backtest: (symbol: string, body: BtRequest) => postJson<BacktestOut>(`/backtest/${encodeURIComponent(symbol)}`, body),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -290,3 +292,24 @@ export type MoveExplanation = AiBase & { start: string; end: string; articles: M
 export type RedFlag = { id: string; message: string };
 export type BacktestReviewOut = AiBase & { red_flags: RedFlag[];
   report: null | { verdict: string; plain_summary: string; concerns: Claim[]; strengths: Claim[]; what_to_check_next: string[] } };
+
+export type BtMetrics = { n_days?: number; years?: number; total_return?: number; cagr?: number | null; volatility_annual?: number; sharpe?: number; sortino?: number | null;
+  max_drawdown?: number; calmar?: number | null; n_trades?: number; win_rate?: number | null; profit_factor?: number | null; avg_trade_return?: number | null;
+  avg_bars_held?: number | null; top5_trade_share?: number | null };
+export type BtBoot = { available: boolean; reason?: string; reps?: number; sharpe?: number; sharpe_ci90?: number[]; total_return_ci90?: number[]; p_value?: number;
+  trials?: number; p_adjusted?: number; block_length?: number; hist?: { counts: number[]; edges: number[] } };
+export type BtTrade = { entry_date: string; exit_date: string; entry_price: number; exit_price: number; qty: number; gross_pnl: number; costs: number; net_pnl: number;
+  return_pct: number; bars: number; exit_reason: string };
+export type StrategyInfo = { name: string; title: string; description: string; defaults: Record<string, number>; grid: Record<string, number[]>; grid_size: number };
+export type BacktestOut = {
+  symbol: string; strategy: string; params: Record<string, number>; bars: number; warmup_bars: number; first_trade_allowed: string; last_bar: string; capital: number;
+  metrics: BtMetrics; buy_hold: BtMetrics; no_cost: { total_return: number | null; sharpe: number | null };
+  costs: { paid: Record<string, number>; total_charges: number; slippage: number; total_drag: number; drag_pct_of_capital: number; exposure: number; return_lost_to_costs: number };
+  series: { equity: { date: string; v: number }[]; buy_hold: { date: string; v: number }[]; drawdown: { date: string; v: number }[]; split_date?: string };
+  trades: BtTrade[]; bootstrap: BtBoot;
+  luck_test: { available: boolean; reason?: string; percentile?: number; p_value?: number; random_median?: number; random_p5?: number; random_p95?: number; real_log_return?: number; note?: string };
+  held_out: null | { split_date: string; in_sample: BtMetrics; out_of_sample: BtMetrics; buy_hold_oos: BtMetrics; bootstrap_oos: BtBoot; sharpe_drop: number };
+  search: null | { trials: number; criterion: string; chosen: Record<string, number>; top: { params: Record<string, number>; in_sample_sharpe: number }[]; worst: { params: Record<string, number>; in_sample_sharpe: number }[] };
+  reviewer_input: Record<string, unknown>; verdict: { label: string; reasons: string[]; beats_buy_hold: boolean; caveat: string }; notes: string[];
+};
+export type BtRequest = { strategy: string; params: Record<string, number>; cost_preset: string; capital: number; stop_loss: number | null; oos_fraction: number; optimize: boolean };

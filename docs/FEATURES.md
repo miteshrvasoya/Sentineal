@@ -107,3 +107,7 @@ See the in-app Guide and the Phase 8 tour. Summary: LightGBM, XGBoost, random fo
 ## Phase 8A: AI analyst, model explainer, why-did-it-move, backtest reviewer (`app/llm/packs.py`, `app/llm/tasks/analyst.py`)
 
 Endpoints: `POST /ai/analyst/{symbol}`, `POST /ai/explain-model/{symbol}`, `POST /ai/explain-move/{symbol}`, `POST /ai/backtest-review`. Frontend: `/s/{symbol}/analyst`, explain button on the Models page. Prompts: `analyst`, `explain_model`, `explain_move`, `backtest_review` (v1). Without a provider the endpoints return `available: false` plus the facts.
+
+## Phase 9: backtester (`app/backtest/`)
+
+`GET /backtest/strategies`, `POST /backtest/{symbol}`. Modules: `costs.py` (Indian delivery cost model), `strategies.py` (4 rules + parameter grids), `engine.py` (event loop), `stats.py` (metrics, stationary bootstrap, random-timing test), `service.py` (orchestration, held-out split, verdict, reviewer input). Frontend: `/s/{symbol}/backtest`.

@@ -10,7 +10,8 @@ This table grows every phase. The newest row is on top.
 
 | Phase | Theme | One-line summary | Status |
 |---|---|---|---|
-| **8A** | **The AI analyst, with guardrails** | Optional AI that explains computed facts, why a stock moved, a model's output and a backtest's trustworthiness, with citations and safety checks | **NEW** |
+| **9** | **Backtester with Indian costs and a luck test** | Replay four classic trading rules with STT/stamp/GST/slippage, held-out data, a parameter-search penalty, a bootstrap and a random-timing test | **NEW** |
+| 8A | The AI analyst, with guardrails | Optional AI that explains computed facts, why a stock moved, a model's output and a backtest's trustworthiness, with citations and safety checks | **NEW** |
 | 8 | Machine learning, ensembles, Model Lab | Gradient-boosted, forest, logistic and experimental deep models with SHAP explanations, a news ablation, a causal ensemble and a Model Lab, all held to the same walk-forward test | done |
 | 7 | Forecast models, tested honestly | Eight statistical models plus baselines, judged out of sample with walk-forward tests, calibration and corrected significance | done |
 | 6 | Fundamentals, risk, scorecard | Ratios and health scores, an editable DCF, risk metrics, and a transparent signal scorecard in the watchlist | done |
@@ -21,7 +22,7 @@ This table grows every phase. The newest row is on top.
 | 2 | Data reliability | Angel One broker data, incremental backfill, data-quality report | done |
 | 1 | Foundations | Price API, candlestick page, provider fallback, NSE calendar | done |
 
-Coming next: a backtester (9), a screener and scheduler (10), and the chat agent and briefings (10A).
+Coming next: a screener and scheduler (10), and the chat agent and briefings (10A).
 
 ## Running it
 
@@ -48,7 +49,52 @@ Every phase has an **interactive tour** inside the app, so you can see what it a
 
 ---
 
-## Phase 8A: the AI analyst, with guardrails (NEW)
+## Phase 9: the backtester (NEW)
+
+> **Tour:** open the **Tour** menu and pick "Phase 9". It walks through the new **Backtest** tab.
+
+### What's new
+
+A backtester at `/s/SYMBOL/backtest`: choose a rule, replay it on the stock's stored daily history, and get a verdict on whether the result survives realistic costs, held-out data and luck tests.
+
+Rules included: **moving-average crossover**, **RSI mean reversion**, **channel breakout (Donchian)**, **time-series momentum**.
+
+### Try it
+
+1. Open a stock, then the **Backtest** tab, keep the defaults, click **Run backtest**.
+2. Read the **Verdict**, then compare the equity line with buy and hold.
+3. Look at **What costs took**, then switch costs to "None" and run again to see the drag.
+4. Tick **search parameters** with a 30% held-out period and run: note how in-sample and held-out differ.
+5. Press **Review** to send the result to the AI reviewer (red flags show even without a key).
+
+### How it works (engineering view)
+
+- **Timing contract.** A rule's signal is computed from bars up to and including day *t* and filled at the *open* of day *t+1*. A test checks that a signal can never use later data (cut the history anywhere and earlier signals are unchanged). This is the same discipline as not reading a column that is only populated after the event you are predicting.
+- **Event loop.** One position, long only, all-in per entry. Cash, shares and equity are updated bar by bar. Tests check the accounting identity (final equity = capital + sum of trade P&L) and that cash never goes negative.
+- **Costs (`app/backtest/costs.py`).** STT 0.1% each side on delivery, stamp duty 0.015% on buy, exchange transaction charge, SEBI fee, 18% GST on brokerage and fees, a depository charge per sell, and slippage in basis points. All fields are editable. Defaults are approximate: check your broker's current rate card.
+- **Stop-loss** is checked against each day's low and fills at the stop, or at the open if the price gapped through it, which is a worse fill than the stop price. After a stop the rule waits for a fresh signal before re-entering.
+- **Held-out data.** With "held-out" set, the last 20 to 40% of history is never used to choose parameters. Parameter search (grid of 12 to 15 combinations per rule) scores each setting by in-sample Sharpe only.
+- **Bootstrap.** Daily returns are resampled in random-length blocks (a stationary bootstrap, so volatility clustering survives) to give a range for the Sharpe ratio. For the p-value, returns are re-centred to zero skill and resampled: the p-value is the share of zero-skill worlds that do at least as well. When you searched *k* parameter sets, p is multiplied by *k* (Bonferroni).
+- **Random-timing test.** Positions are circularly shifted against the price. Trades, durations and time invested are identical, only the timing is destroyed. Real timing's percentile among the shifts shows whether timing mattered. This one is before costs.
+- **Verdict** is rule-based: it says "no demonstrated edge" if there are under 30 trades, no held-out period, a non-significant adjusted p-value, a large Sharpe drop out of sample, or no win over buy-and-hold after costs.
+
+### Trading ideas explained
+
+- **Sharpe ratio:** return above the risk-free rate divided by volatility, annualised. A signal-to-noise ratio for returns.
+- **Drawdown:** how far the account fell from its previous high. It measures whether you could stomach holding.
+- **Overfitting:** tuning knobs on the same data you judge on. Parameter search on random data finds a "great" setting by luck; the held-out stretch exposes it.
+- **Slippage:** the gap between the price you expect and the price you actually get.
+- **Look-ahead bias:** a backtest accidentally using information from the future. The next-open fill rule exists to prevent it.
+
+### How far to trust it
+
+- It uses **daily bars** with long-only, single-position trades. No shorting, margin, intraday behaviour, position sizing by risk or portfolios.
+- Fills at the open are a simplification: large orders in thin stocks would move the price more than the slippage figure.
+- Adjusted prices from the data providers are assumed correct. Survivorship bias is not handled: the universe is today's stocks.
+- The cost defaults are approximate and not verified against a live rate card.
+- All development tests used synthetic data. Surviving these tests is necessary, not sufficient, for a rule to work in the future.
+
+## Phase 8A: the AI analyst, with guardrails
 
 > **Tour:** open the **Tour** menu and pick "Phase 8A". It walks through the new **AI analyst** tab and the explain button on the Models page.
 
@@ -672,6 +718,9 @@ Yahoo Finance is an unofficial source that can break without notice, which is wh
 | **Volatility** | How much price moves, usually the standard deviation of returns |
 | **VWAP** | Average price weighted by volume traded |
 | **Context pack** | The list of computed facts an AI is allowed to talk about (Phase 8A) |
+| **Backtest** | Replaying a trading rule on past data to see what it would have earned (Phase 9) |
+| **Bootstrap** | Resampling the data many times to see how much a statistic varies by chance (Phase 9) |
+| **Drawdown** | Fall from a previous peak (Phase 9) |
 | **Ensemble** | A weighted blend of several models' forecasts (Phase 8) |
 | **SHAP** | Splits one prediction into per-feature contributions (Phase 8) |
 | **Walk-forward validation** | Training on the past, testing on the next unseen period, then rolling forward (Phase 7) |
