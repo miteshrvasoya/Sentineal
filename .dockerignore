@@ -1,7 +1,12 @@
-node_modules
-.next
-.git
+**/node_modules
+**/.next
+**/.venv
 **/__pycache__
-.venv
-*.db
+**/.pytest_cache
+**/.ruff_cache
+**/*.db
+**/*.db-wal
+**/*.db-shm
+.git
 .env
+data/cache
