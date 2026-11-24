@@ -10,14 +10,15 @@ This table grows every phase. The newest row is on top.
 
 | Phase | Theme | One-line summary | Status |
 |---|---|---|---|
-| **5A** | **LLM layer** | Optional AI that classifies news (event type, importance, summary), gives a second sentiment opinion, with budgets and guardrails | **NEW** |
+| **6** | **Fundamentals, risk, scorecard** | Ratios and health scores, an editable DCF, risk metrics, and a transparent signal scorecard in the watchlist | **NEW** |
+| 5A | LLM layer | Optional AI that classifies news (event type, importance, summary), gives a second sentiment opinion, with budgets and guardrails | done |
 | 5 | News and sentiment | Six news sources, dedupe, ticker tagging, FinBERT/VADER scoring, daily sentiment features | done |
 | 4 | Market structure | Swings, break of structure, gaps, order blocks, volume profile, pivots, candlestick patterns with edge tests | done |
 | 3 | Indicators | 81 indicators (trend, momentum, volatility, volume) with proof they never peek at the future | done |
 | 2 | Data reliability | Angel One broker data, incremental backfill, data-quality report | done |
 | 1 | Foundations | Price API, candlestick page, provider fallback, NSE calendar | done |
 
-Coming next: fundamentals and risk metrics (Phase 6), forecasting models with honest evaluation (7, 8), a backtester (9), a screener (10), and the AI analyst, chat agent and briefings (8A, 10A).
+Coming next: forecasting models with honest evaluation (Phases 7 and 8), a backtester (9), a screener (10), and the AI analyst, chat agent and briefings (8A, 10A).
 
 ## Running it
 
@@ -25,14 +26,113 @@ Coming next: fundamentals and risk metrics (Phase 6), forecasting models with ho
 make install     # backend (uv) + frontend (npm)
 make dev         # backend :8000 (docs at /docs), frontend :3000
 make seed        # optional: 5y of daily prices + 90 days of news for the default stocks
-make test        # 188 backend tests, frontend type-check
+make test        # 219 backend tests, frontend type-check
 ```
 
 Copy `.env.example` to `.env` to add keys. **Everything works with zero keys**: Yahoo Finance for prices, Google News and GDELT for news, VADER for sentiment, and no LLM features. Each key you add lights up more.
 
 ---
 
-## Phase 5A: the LLM layer (NEW)
+## Guided tours
+
+Every phase has an **interactive tour** inside the app, so you can see what it added on the real screens, not just read about it.
+
+- Click **Tour** in the top bar and pick a phase (a red dot means a tour you have not taken yet). The newest phase also announces itself with a banner the first time you open the app.
+- A tour dims the page, **spotlights the real element** being explained, and writes a short explanation next to it. It moves between pages for you.
+- Keys: **→** or Enter for next, **←** for back, **Esc** to leave. Finished tours get a tick.
+- If a spotlighted part has no data yet (for example no news fetched), the tour still explains it in a centred card and tells you what to do to make it appear.
+- Tours replay any time, and the buttons at the top of this page start them too.
+
+---
+
+## Phase 6: fundamentals, risk and the scorecard (NEW)
+
+> **Tour:** open the **Tour** menu in the top bar and pick "Phase 6", or use the buttons at the top of this page. It walks through the real screens in about two minutes.
+
+### What's new
+
+Until now QuantLens looked at *price, volume and news*. Phase 6 adds three different lenses:
+
+1. **Fundamentals**: the accounting health and price of the *business* (is it profitable, indebted, cheap or expensive versus its sector?).
+2. **Risk**: how badly the *stock* has hurt holders in the past and how it moves with the market.
+3. **Signal Scorecard**: one transparent summary that combines trend, momentum, volume, volatility, news and valuation, and shows its working.
+
+Everything is descriptive. Nothing here predicts a price or tells you to buy or sell.
+
+### Where to find it
+
+| In the app | What you see |
+|---|---|
+| Stock page, **Overview** tab, below the chart | The **Signal scorecard**: six sub-scores from -100 to +100 and a mild overall label. Click a row to see every rule that voted |
+| Left **watchlist** | Each row now has the last price, today's change, a 30-day sparkline and a coloured scorecard dot |
+| Stock page, **Fundamentals & risk** tab | Key ratios with plain-English meanings and sector percentiles, Piotroski / Altman / Graham cards, an **editable DCF**, risk cards, underwater chart, rolling beta and correlation, Kelly (with a warning), and a watchlist correlation heatmap |
+| API | `/fundamentals/{symbol}`, `POST /fundamentals/{symbol}/refresh`, `/risk/{symbol}`, `/risk/correlation`, `/scorecard/{symbol}`, `/watchlist/summary` |
+
+### Try it
+
+1. Open any stock's **Overview** tab and scroll to the scorecard. Click **Trend** to see each rule and why it voted +1, 0 or -1.
+2. Open **Fundamentals & risk** and click **Fetch / refresh fundamentals** (needs Yahoo to be reachable). Do it for several stocks in the same sector so sector percentiles can appear.
+3. Drag the **DCF** sliders. Raise the discount rate and watch the value fall; then push long-run growth close to the discount rate and watch it explode. That fragility *is* the lesson.
+4. Change the **risk-free rate** in the Risk section and see Sharpe and Sortino move.
+5. Run `make seed` first if charts are empty: the risk section needs about 60 daily bars, and beta needs Nifty 50 prices (the seed loads them).
+
+### How it works under the hood
+
+- **Fundamentals** come from Yahoo Finance statements through a `FundamentalsProvider`. Line-item names differ between companies, so extraction uses alias lists and returns *missing*, never zero, when an item is absent. The raw inputs are stored; **ratios, scores and the DCF are recomputed on every request**, so changing DCF assumptions never needs a re-download.
+- **Valuation uses the latest stored closing price**, not the price from when the statements were fetched.
+- **Sector percentiles** rank a stock among same-sector companies *you have loaded*. They need at least 3 peers, otherwise they show "needs 3+ peers" instead of a made-up number.
+- **Risk metrics** are computed from adjusted daily closes (252 trading days a year). Rolling metrics use a sliding window and only past data at each point; a test proves that adding future bars never changes earlier values.
+- **The scorecard** is rules, not a model. Each rule votes +1, 0 or -1; a sub-score is the average vote of the rules that had data; the overall score is a weighted average (trend 25%, momentum 20%, volume 15%, volatility 10%, sentiment 15%, valuation 15%) renormalised over whichever parts have data. Missing parts are left out and listed, never guessed.
+
+### Ideas explained for an engineer
+
+**Fundamentals**
+
+- **Financial statements.** Three tables a company publishes: the *income statement* (revenue minus costs equals profit over a year), the *balance sheet* (what it owns, owes and the owners' stake at one date), and the *cash flow statement* (actual cash in and out). Profit can be flattering; cash flow is harder to fake.
+- **P/E.** Price divided by earnings per share: how many rupees you pay for one rupee of yearly profit. Roughly a payback period if profit stayed flat.
+- **P/B.** Price versus the accounting value of the company's net assets per share.
+- **EV/EBITDA.** The price of the *whole business* (market value plus debt minus cash) over operating profit before interest, tax and depreciation. It compares companies with different debt levels fairly.
+- **ROE and ROCE.** Profit relative to owners' money (ROE) or to all capital including debt (ROCE). Think "return on invested capital" for the business.
+- **Debt / equity.** A leverage ratio. Higher means more borrowing; normal for banks, risky for others.
+- **Margins.** Gross, operating and net margin: the share of each rupee of sales left at each stage.
+- **PEG.** P/E divided by earnings growth (in percent): tries to adjust "cheap" for how fast profit is growing.
+- **Piotroski F-score.** Nine yes/no checks: profitable, cash flow positive, return on assets improving, cash flow above profit, less debt, better liquidity, no new shares, better margin, better asset turnover. A unit-test suite for financial health: 7 to 9 strong, 0 to 3 weak. Checks that need last year's data are marked unavailable instead of failed.
+- **Altman Z.** A weighted sum of five ratios that has historically separated companies that later failed from those that survived. Above 2.99 safe, 1.81 to 2.99 grey, below 1.81 distress. Built for non-financial companies, so banks are marked *not applicable*.
+- **Graham number.** The square root of 22.5 × earnings per share × book value per share: a conservative upper bound on a "fair" price from Benjamin Graham's rules of thumb (P/E up to 15, P/B up to 1.5).
+- **DCF (discounted cash flow).** Money later is worth less than money now, so future cash flows are *discounted*. The model projects free cash flow for some years, adds a long-run "terminal" value, and discounts everything at a rate that reflects the return you demand. Three assumptions drive it (discount rate, near-term growth, long-run growth), and it is wildly sensitive to all three. The sensitivity grid under the sliders shows exactly how much.
+
+**Risk**
+
+- **Return, volatility, CAGR.** CAGR is the steady yearly return that gives the same end result. Volatility is the standard deviation of daily returns, annualised.
+- **Sharpe ratio.** Return above a risk-free rate divided by volatility: reward per unit of risk. The risk-free rate (default 7%, roughly Indian government bond yields) is an assumption you can change.
+- **Sortino ratio.** Like Sharpe, but only downside swings count as risk (nobody complains about upside volatility).
+- **Drawdown.** How far the price is below its previous peak. **Max drawdown** is the worst such fall; the underwater chart shows it every day. **Calmar** is yearly return divided by the max drawdown.
+- **VaR and CVaR.** "Value at Risk at 95%": a one-day loss that was exceeded on only 5% of days. **CVaR** (expected shortfall) is the *average* loss on those worst days. The *historical* version uses actual past days; the *normal-model* version assumes a bell curve and usually understates real tail losses, which is why both are shown.
+- **Beta.** The slope of the stock's returns against the Nifty's: 1.5 means it has tended to move 50% more than the market. **Alpha** is the yearly return beta cannot explain. **Correlation** is how tightly the two move together (-1 to +1). Beta and correlation drift, which is why rolling versions are charted.
+- **Correlation heatmap.** How similar your watchlist stocks are. A watchlist that is all deep red is one bet, not ten.
+- **Kelly fraction.** A formula for how much to risk if you knew your edge exactly. Real inputs are noisy estimates, so it overstates safe sizing badly. It is **display only**, with a warning.
+
+### Guardrails and honesty in this phase
+
+- The scorecard labels are deliberately mild ("leaning positive", "mixed", "leaning negative"); a test checks that no text in it reads as advice.
+- Volatility is scored as *stability* (a risk gauge), not a direction.
+- Scores say when data is missing; percentiles say when peers are missing; the DCF says when free cash flow is not positive.
+- A floating-point bug caught during testing: constant returns have a standard deviation of about 1e-18, not exactly zero, which produced absurd Sharpe values. All ratios now treat a vanishing denominator as "undefined".
+
+### How far to trust it
+
+- **Not verified against live Yahoo data**: the statement parser is tested on synthetic tables shaped like Yahoo's. Real companies' line items vary and some will be missing; the refresh result tells you how many fields were found.
+- **Free statement data** is often incomplete, restated or in different units; always sanity-check a number you care about against the company's own reports.
+- **Scorecard thresholds** (for example "RSI above 50") are conventional rules of thumb. They are **not tuned or validated** as predictors, and their weights are my choices.
+- **Sector percentiles** only compare against companies you have loaded, and Yahoo's sector labels are coarse.
+- **DCF is simplified**: free cash flow is treated as flowing to shareholders with no net-debt adjustment.
+- **Not built in this phase**: Finnhub basic financials (limited Indian coverage), macro series (USDINR, Brent, US 10-year, India VIX features) and earnings-date features. They are planned for later phases.
+
+---
+
+## Phase 5A: the LLM layer
+
+> **Tour:** open the **Tour** menu in the top bar and pick "Phase 5A".
 
 ### What's new
 
@@ -143,6 +243,8 @@ QuantLens defends against this with a **forward-only rule**: every LLM output is
 
 ## Phase 5: news and sentiment
 
+> **Tour:** open the **Tour** menu in the top bar and pick "Phase 5".
+
 ### What's new
 
 News from up to six sources, cleaned, tagged to companies, scored for sentiment, and turned into daily features you can compare with price.
@@ -181,6 +283,8 @@ News endpoints and response shapes were written from public documentation and te
 ---
 
 ## Phase 4: market structure, volume profile and patterns
+
+> **Tour:** open the **Tour** menu in the top bar and pick "Phase 4".
 
 ### What's new
 
@@ -229,6 +333,8 @@ Structure markings are *descriptions* of what price did, not forecasts. Most can
 
 ## Phase 3: indicators
 
+> **Tour:** open the **Tour** menu in the top bar and pick "Phase 3".
+
 ### What's new
 
 81 indicator series in four families, toggled onto the price chart or shown in synced sub-panes, plus proof they never use future data.
@@ -269,6 +375,8 @@ Indicators summarize past price. They are *features*, not predictions, and many 
 
 ## Phase 2: data reliability
 
+> **Tour:** open the **Tour** menu in the top bar and pick "Phase 2".
+
 ### What's new
 
 Broker-grade data (Angel One SmartAPI) as the preferred source when you have an account, incremental backfill, and a report that tells you when the stored data is suspicious.
@@ -300,6 +408,8 @@ The Angel One endpoints, field names and index tokens come from my memory of the
 ---
 
 ## Phase 1: foundations
+
+> **Tour:** open the **Tour** menu in the top bar and pick "Phase 1".
 
 ### What's new
 

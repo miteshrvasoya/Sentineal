@@ -8,7 +8,7 @@ const badge = (v?: string) =>
 export default function PatternsPanel({ p }: { p: Patterns }) {
   const [h, setH] = useState("5d");
   return (
-    <section className="space-y-2">
+    <section className="space-y-2" data-tour="patterns-table">
       <div className="flex items-center gap-2">
         <h2 className="text-lg font-semibold">Candlestick patterns: does this stock show an edge?</h2>
         <span className="ml-auto text-xs text-slate-500">forward horizon</span>

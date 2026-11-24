@@ -1,0 +1,115 @@
+// Interactive product tours. One per phase, newest first. Each step highlights a real element on a real page
+// (elements carry `data-tour="<target>"`). If an element is not on screen (for example no data yet) the tour shows
+// the explanation in the centre of the screen instead, so it never breaks.
+//
+// RULE FOR FUTURE PHASES: add a tour here, add data-tour attributes to the new UI, flip `isNew` on the newest
+// tour only, and add a matching section to content/GUIDE.md.
+
+export type Step = {
+  /** Page to show. `{symbol}` is replaced by the stock you are looking at (default RELIANCE). */
+  route?: string;
+  /** Value of the data-tour attribute to spotlight. Omit for a centred card. */
+  target?: string;
+  title: string;
+  body: string; // blank line = new paragraph
+  note?: string; // shown when the target is not on screen
+};
+
+export type TourDef = { id: string; phase: string; title: string; blurb: string; isNew?: boolean; steps: Step[] };
+
+const OV = "/s/{symbol}";
+const ST = "/s/{symbol}/structure";
+const NW = "/s/{symbol}/news";
+const FD = "/s/{symbol}/fundamentals";
+
+export const TOURS: TourDef[] = [
+  {
+    id: "phase-6", phase: "Phase 6", title: "Fundamentals, risk and the scorecard", isNew: true,
+    blurb: "Is the company cheap and healthy? How risky is the stock? A transparent scorecard that shows its working.",
+    steps: [
+      { title: "What Phase 6 adds", body: "Until now QuantLens looked at price, volume and news. Phase 6 asks three different questions:\n\nIs the business healthy and reasonably priced (fundamentals)? How badly can this stock hurt you, and how does it move with the market (risk)? And what do all the signals say together (the scorecard)?\n\nEverything is descriptive. Nothing here predicts a price or tells you to buy or sell." },
+      { route: OV, target: "scorecard", title: "The Signal Scorecard", body: "Six sub-scores from -100 to +100: Trend, Momentum, Volume / flow, Volatility, News sentiment, Valuation.\n\nEach one is just the average vote of simple rules (+1, 0 or -1). Click a row to see every rule, the value it looked at, and why it voted that way. If a data source is missing (no news, no fundamentals), that sub-score is left out rather than guessed.\n\nThe headline label is deliberately mild: leaning positive, mixed or leaning negative.", note: "The scorecard needs about 60 days of stored prices. Run make seed, then reload." },
+      { route: OV, target: "watchlist", title: "Scorecard badges in the watchlist", body: "Each watchlist row now shows the last price, today's change, a 30-day sparkline (a tiny line chart of recent closes) and a coloured score badge.\n\nGreen means leaning positive, red leaning negative, grey mixed. It is a quick triage view, not a recommendation.", note: "Badges appear once the watchlist symbols have stored prices." },
+      { route: FD, target: "fund-refresh", title: "Fetching fundamentals", body: "Fundamentals are the accounting numbers from a company's financial statements: revenue, profit, debt, cash flow.\n\nClick here to download them for this stock (from Yahoo Finance, free but sometimes incomplete). They are stored locally, so ratios and the DCF below recalculate instantly without downloading again.\n\nFor sector comparisons, refresh a few companies in the same sector." },
+      { route: FD, target: "ratios", title: "Ratios, with sector context", body: "Each row has a plain-English meaning. P/E is price divided by earnings per share (how many rupees you pay for one rupee of yearly profit). ROE is profit divided by shareholders' equity (how efficiently the company uses owners' money).\n\nThe percentile bar compares the stock with same-sector companies you have loaded: for example '20' on P/E means cheaper than about 80% of peers. It stays blank until at least 3 peers are loaded, instead of faking precision." },
+      { route: FD, target: "scores", title: "Three classic health scores", body: "Piotroski F-score: nine yes/no accounting checks (profitable? cash flow positive? less debt? no new shares?). 7-9 is strong, 0-3 weak. Think of it as a unit-test suite for financial health.\n\nAltman Z: a bankruptcy-risk score for non-financial companies (safe, grey or distress). Not valid for banks, and the app says so.\n\nGraham number: a conservative 'fair price' ceiling from Benjamin Graham's rules of thumb." },
+      { route: FD, target: "dcf", title: "A DCF you can play with", body: "A discounted cash flow estimates what a business is worth today by projecting its future free cash flow and discounting it back.\n\nDrag the sliders: discount rate (how demanding you are), growth for the next years, and long-run growth. Watch the answer swing. That swing is the lesson: DCF output is only as good as its assumptions, and most of the value usually sits in the far-future 'terminal' term.\n\nThe grid below shows the same estimate under nearby assumptions." },
+      { route: FD, target: "risk-cards", title: "Risk and performance numbers", body: "Sharpe: return earned per unit of volatility, above a risk-free rate you can edit. Sortino: like Sharpe but only penalises downside swings. Max drawdown: the worst peak-to-trough fall. Calmar: yearly return divided by that worst fall.\n\nVaR (value at risk): a loss that was exceeded on only 5% (or 1%) of days. CVaR: the average loss on those worst days. Beta: how much the stock moves per 1% move in the Nifty." },
+      { route: FD, target: "drawdown", title: "Underwater chart", body: "This shows how far below its previous peak the stock has been on every day. Zero means a fresh high. Deep, long valleys are what really test an investor's patience, which is why drawdown is often more honest than volatility." },
+      { route: FD, target: "rolling-beta", title: "Rolling beta and correlation", body: "Beta and correlation are not constants. Here they are recomputed over a sliding 63-day window (about 3 months), using only past data at each point.\n\nWatch for periods where the stock stopped following the market, or started following it much more closely." },
+      { route: FD, target: "correlation", title: "Correlation heatmap", body: "How similarly your watchlist stocks move. Dark red means they move together (little diversification between them), blue means they tend to offset.\n\nIf everything you follow is deep red, one bad market day hits all of it." },
+      { route: FD, target: "kelly", title: "Kelly: shown, but with a warning", body: "The Kelly fraction is a formula for how much of a bankroll to risk if you knew your edge exactly. In practice the inputs are noisy estimates, so it wildly overstates safe sizing.\n\nIt is display-only here, on purpose. A negative value means the past return did not even beat the risk-free rate." },
+      { title: "That is Phase 6", body: "Re-run this tour any time from the Tour menu in the top bar, and read the full explanation in the Guide. Next up: forecasting models, evaluated honestly against simple baselines." },
+    ],
+  },
+  {
+    id: "phase-5a", phase: "Phase 5A", title: "The optional AI layer",
+    blurb: "AI that classifies news and gives a second sentiment opinion, with a spending cap and safety checks.",
+    steps: [
+      { title: "AI is optional", body: "With no API key everything still works. With a key (Anthropic, Gemini, OpenAI, Groq, or a local Ollama model) the AI reads news like an analyst and returns structured data.\n\nThe AI never computes prices or indicators and never gives buy/sell advice. It only interprets text." },
+      { route: NW, target: "ai-enrich", title: "AI-enrich", body: "Click to have the AI classify stored articles: which companies, what kind of event, how important (materiality), over what time horizon, and a one-line summary.\n\nNo key? You get a calm 'LLM unavailable' message and the page keeps working." },
+      { route: NW, target: "agreement", title: "FinBERT vs the AI", body: "The AI also scores each article's sentiment. Both opinions are stored side by side and compared here: how often they agree, and the biggest disagreements.\n\nThe AI score is a second opinion. It never replaces FinBERT as the default series.", note: "This panel always exists; it fills in after you run AI-enrich with a key set." },
+      { route: NW, target: "feed", title: "Chips on every headline", body: "Event type, materiality (red = high), time horizon, 'rehash' when it repeats known facts, and an LLM score chip (green outline = agrees with FinBERT, amber = disagrees).\n\nA red 'suspicious text' chip means the article contained text that looks like instructions to an AI. It was treated purely as data.\n\n'Not for backtests' marks AI output on articles older than your AI data collection: the model may already know how those stories ended." },
+      { route: NW, target: "materiality-filter", title: "Filter to what matters", body: "Tick this to show only high-materiality articles, the ones the AI believes could move the stock more than a normal day.", note: "Shown when there are headlines." },
+      { route: "/settings", target: "llm-budget", title: "Spending cap with a hard stop", body: "Daily token and dollar budgets. Before every call the app reserves the worst case; if that would pass the cap, the call is refused and nothing is sent anywhere, even to a fallback provider.\n\nSpend is an estimate from prices in config/llm.yaml, not your provider's invoice." },
+      { route: "/settings", target: "llm-routing", title: "Which model does what", body: "Each task lists providers in order. The first one with a key is used; on a rate limit or error the next is tried. Put a cheap or free model on bulk extraction and a stronger one on reasoning tasks. Edit config/llm.yaml to change it." },
+      { title: "Guardrails in one line", body: "Article text is fenced as untrusted data, advice-sounding or number-inventing summaries are rejected and regenerated, outputs must fit a strict schema, and everything is cached so repeats are free." },
+    ],
+  },
+  {
+    id: "phase-5", phase: "Phase 5", title: "News and sentiment",
+    blurb: "Six news sources, scored for tone, turned into daily features and compared with price.",
+    steps: [
+      { route: NW, target: "fetch-news", title: "Fetch news", body: "Pulls articles from Google News and GDELT (no key needed) plus Finnhub, Marketaux, Alpha Vantage and NewsAPI if you added keys. Duplicates are merged, articles are tagged to companies, and each is scored once.\n\nThe result line tells you how many were new, and which source failed and why." },
+      { route: NW, target: "market-gauge", title: "Market-wide sentiment", body: "The average tone of all stored news over 30 days, from -1 (negative) to +1 (positive).\n\nThe badge near the title tells you which scorer produced the numbers: FinBERT (a language model tuned for finance) or the simpler VADER fallback." },
+      { route: NW, target: "sentiment-chart", title: "Sentiment vs price", body: "The purple line is price. Green/red bars are each day's average sentiment. The amber line is a recency-weighted score: yesterday's news counts half as much as news from the last hour, like an exponential moving average.\n\nAmber circles mark unusual news volume, which often matters more than whether the news was good or bad.", note: "Needs stored articles and daily prices." },
+      { route: NW, target: "leadlag", title: "Does sentiment lead price?", body: "Each bar is the correlation between sentiment today and the return a few days later (positive lags) or earlier (negative lags). Solid bars are statistically significant after correcting for testing 11 lags at once; faded ones are not.\n\nExpect mostly faded bars. News usually describes moves that already happened, so price leading sentiment is the common finding.", note: "Needs at least 30 days of overlap between news and prices." },
+      { route: NW, target: "top-terms", title: "Top terms and spikes", body: "The most common words in recent headlines, and the days when article volume jumped well above normal.", note: "Appears once articles are stored." },
+      { route: NW, target: "feed", title: "The scored feed", body: "Every headline with its sentiment chip, source, time in IST, and the companies it was tagged to. Click a headline to open the original article.\n\nTime rule to remember: an article published after the 15:30 IST market close counts on the next day, because at that day's close nobody could have known it yet." },
+    ],
+  },
+  {
+    id: "phase-4", phase: "Phase 4", title: "Market structure and patterns",
+    blurb: "Swings, breaks of structure, gaps, volume profile, and an honest test of candlestick patterns.",
+    steps: [
+      { route: ST, target: "layers", title: "Layers", body: "Toggle each concept on and off. Start with fewer layers: on noisy data the chart gets busy fast.\n\nThese are descriptions of what price did in the vocabulary traders use (swing highs and lows, break of structure, gaps), not forecasts." },
+      { route: ST, target: "swing-k", title: "Swing sensitivity (k)", body: "A swing high is a bar whose high beats the k bars on each side. Small k finds many small swings (noisy). Large k finds fewer, bigger ones, but each is confirmed k bars late.\n\nThat delay is deliberate: it is why the analysis never uses information from the future." },
+      { route: ST, target: "structure-chart", title: "Reading the chart", body: "HH/HL/LH/LL label each swing against the previous one. BOS marks a close beyond the last swing in the trend's direction; CHoCH a close beyond it against the trend. Shaded boxes are unfilled price gaps (FVG) and order blocks; wide bands are support/resistance zones; the histogram on the right edge is the volume profile.", note: "Needs stored daily prices." },
+      { route: ST, target: "volume-profile-card", title: "Volume profile", body: "A histogram of traded volume by price, not by time. POC (point of control) is the price where the most volume traded. The value area holds about 70% of the volume. High-volume nodes tend to act like magnets, low-volume nodes are prices the market moved through quickly." },
+      { route: ST, target: "patterns-table", title: "Do candlestick patterns work?", body: "For each named pattern (hammer, engulfing, morning star...) the table finds every past occurrence on this stock and checks what happened next, compared with how often the stock rose anyway (the base rate).\n\nA verdict of 'edge' requires statistical significance after correcting for testing many patterns at once. Most will say 'no demonstrated edge' or 'insufficient sample'. That is the honest, expected result." },
+      { route: ST, target: "legend", title: "Plain-language legend", body: "Open this any time for a definition of every marking on the chart." },
+    ],
+  },
+  {
+    id: "phase-3", phase: "Phase 3", title: "Indicators on the chart",
+    blurb: "81 indicators as overlays and panes, with proof they never peek at the future.",
+    steps: [
+      { route: OV, target: "overlay-chips", title: "Overlays and panes", body: "Overlays draw on the price chart (moving averages, Bollinger bands, Supertrend, Ichimoku, VWAP...). Panes add small synced charts underneath (RSI, MACD, ADX, volume flow, volatility).\n\nEngineer's view: moving averages are low-pass filters on price, Bollinger bands are a control chart (rolling mean plus or minus 2 standard deviations), and RSI is a normalised ratio of recent gains to losses." },
+      { route: OV, target: "layout-buttons", title: "Save your layout", body: "Your selection is remembered automatically. Save layout stores a named slot you can restore with Load." },
+      { route: OV, target: "chart", title: "Hover for values", body: "Move the crosshair over the chart to see open, high, low, close, volume and the value of every indicator you turned on at that bar.\n\nBehind the scenes every indicator is tested to be causal: its value at any bar uses only data up to that bar.", note: "Needs stored daily prices." },
+    ],
+  },
+  {
+    id: "phase-2", phase: "Phase 2", title: "Data reliability",
+    blurb: "Broker data, incremental backfill and a report that tells you when stored data looks wrong.",
+    steps: [
+      { route: "/settings", target: "providers", title: "Provider status", body: "Where the data comes from. Angel One (a broker API) is used first if you configured all four credentials; otherwise Yahoo Finance. You see rate limits, calls made today, and the last success and error for each.\n\nIf one fails, the next is tried automatically and the page names the failing provider instead of going blank." },
+      { route: "/settings", target: "data-quality", title: "Data-quality report", body: "Type a symbol and press Check. The report lists missing trading days (using the NSE holiday calendar), impossible prices, stale data, mixed sources, and extreme moves.\n\nA large raw jump that disappears in the adjusted series is flagged as a likely stock split or bonus. Gaps are reported, never silently filled." },
+    ],
+  },
+  {
+    id: "phase-1", phase: "Phase 1", title: "Getting around",
+    blurb: "Search, watchlist, market status and the candlestick chart.",
+    steps: [
+      { route: OV, target: "search", title: "Search any symbol", body: "Type a company name or NSE symbol (RELIANCE, TCS, INFY). Press Enter to open it." },
+      { route: OV, target: "market-bar", title: "Market status", body: "Whether NSE is open, the IST clock, and the Nifty 50 and India VIX values. Nifty 50 is the index of 50 large companies; India VIX is the market's expected volatility, often called the fear gauge.", note: "Nifty and VIX show n/a if the data source is unreachable from your network." },
+      { route: OV, target: "watchlist", title: "Your watchlist", body: "Stocks you follow. Click one to open it." },
+      { route: OV, target: "timeframes", title: "Timeframes", body: "Each candle summarises one time bucket: open, high, low, close, plus volume. 1m is one-minute candles, 1d is daily. Free sources limit how far back intraday history goes." },
+      { route: OV, target: "adjusted", title: "Adjusted prices", body: "When a company splits its shares (1 becomes 2), the price halves overnight with no real change in value. Adjusted prices rescale history so the chart is continuous, like re-basing a metric after a unit change." },
+      { route: OV, target: "chart", title: "The candlestick chart", body: "Green candle: closed above its open. Red: closed below. The thin lines (wicks) show the highs and lows. Bars underneath are volume.", note: "If you see an error banner here, the data provider is unreachable; the banner names it." },
+      { target: "disclaimer", title: "Educational tool", body: "Every page carries this note: educational tool, not investment advice. Data can be delayed or wrong, and no model here is a guarantee." },
+    ],
+  },
+];
+
+export const NEWEST_TOUR = TOURS.find((t) => t.isNew);

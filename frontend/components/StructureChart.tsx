@@ -109,5 +109,5 @@ export default function StructureChart({ bars, interval, s, patterns, layers, da
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bars, interval, s, patterns, key, dark]);
 
-  return <div ref={el} className="h-[620px] w-full rounded border border-slate-200 dark:border-slate-800" data-testid="structure-chart" />;
+  return <div ref={el} className="h-[620px] w-full rounded border border-slate-200 dark:border-slate-800" data-testid="structure-chart" data-tour="structure-chart" />;
 }

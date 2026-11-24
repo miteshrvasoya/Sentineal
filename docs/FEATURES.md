@@ -75,3 +75,13 @@ See the in-app Guide (`/guide`, source `frontend/content/GUIDE.md`) for the full
 - `tasks/news_enrich.py` (event type, direction, materiality, horizon, new-vs-rehash, summary, tickers) and `tasks/sentiment_llm.py` (second opinion stored as model `llm:<model>`).
 - `eval.py` + `data/llm_eval/headlines.jsonl`: accuracy, agreement, JSON validity, hallucinated-number and advice rates per provider/prompt version.
 - Forward-only rule: LLM output on articles published before collection began is `valid_for_backtest = false`.
+
+
+## Phase 6: fundamentals, risk, scorecard (`features/fundamentals.py`, `features/risk.py`, `models/scorecard.py`, `data/analysis.py`)
+
+See the in-app Guide for the full walkthrough and the Phase 6 tour. Summary:
+
+- **Fundamentals:** alias-based extraction from yfinance-shaped statements (missing = None, never 0); ratios (P/E, P/B, EV/EBITDA, ROE, ROCE, debt/equity, margins, growth, dividend yield, PEG); Piotroski F-score with per-criterion pass/fail/na; Altman Z (original formula; not applicable to financials); Graham number; two-stage DCF with sensitivity grid and editable assumptions; sector percentiles among stored same-sector peers (needs >= 3).
+- **Risk:** CAGR, volatility, Sharpe, Sortino, Calmar, drawdown (max, longest, current), historical and parametric VaR/CVaR at 95/99%, beta/alpha/correlation vs Nifty 50, Kelly (display only), rolling volatility/Sharpe/beta/correlation (causal), correlation matrix. Risk-free rate is an editable assumption (default 7%). Vanishing denominators (std below 1e-12) are reported as undefined.
+- **Scorecard:** six sub-scores (trend, momentum, volume/flow, volatility-as-stability, sentiment, valuation) from explicit rules voting +1/0/-1 with a reason; weights 25/20/15/10/15/15 renormalised over available parts; mild labels; no advice language (tested). Thresholds are rules of thumb, not validated.
+- **API:** `POST /fundamentals/{symbol}/refresh`, `/fundamentals/{symbol}?r=&g1=&g2=&years=`, `/risk/{symbol}`, `/risk/correlation`, `/scorecard/{symbol}`, `/watchlist/summary`.

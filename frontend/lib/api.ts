@@ -65,6 +65,12 @@ export const api = {
   llmStatus: () => get<LlmStatus>("/llm/status"),
   llmUsage: () => get<LlmUsage>("/llm/usage?days=14"),
   enrich: (symbol: string) => post<EnrichResult>(`/llm/enrich/${encodeURIComponent(symbol)}?limit=40`),
+  scorecard: (symbol: string) => get<Scorecard>(`/scorecard/${encodeURIComponent(symbol)}`),
+  fundamentals: (symbol: string, q = "") => get<Fundamentals>(`/fundamentals/${encodeURIComponent(symbol)}${q}`),
+  refreshFundamentals: (symbol: string) => post<{ fields_found: number; fields_total: number; has_prior_year: boolean; sector: string }>(`/fundamentals/${encodeURIComponent(symbol)}/refresh`),
+  risk: (symbol: string, rf: number) => get<Risk>(`/risk/${encodeURIComponent(symbol)}?rf=${rf}`),
+  correlation: () => get<Corr>("/risk/correlation"),
+  watchSummary: () => get<WatchRow[]>("/watchlist/summary"),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -138,3 +144,40 @@ export type LlmUsage = { today: LlmStatus["budget"];
 export type EnrichResult = { available: boolean; reason?: string; badge: string;
   enrichment?: { processed: number; flagged: number; summaries_removed: number; failed_batches: number; stopped: string | null; model: string | null };
   sentiment?: { scored: number; failed_batches: number; stopped: string | null; model: string | null } };
+
+
+export type Rule = { id: string; rule: string; value: number | string | null; vote: -1 | 0 | 1; why: string };
+export type SubScore = { label: string; weight: number; available: boolean; score: number | null; rules: Rule[]; fired: string[] };
+export type Scorecard = {
+  symbol: string; as_of: string; bars: number; composite: number | null; label: string | null;
+  subscores: Record<string, SubScore>; missing: string[]; disclaimer: string;
+};
+export type Pct = { percentile: number | null; peers: number; higher_is_better?: boolean };
+export type Fundamentals = {
+  symbol: string; sector: string; currency: string; price: number | null; fetched_at: number; stale_days: number; notes: string[];
+  ratios: Record<string, number | null>; percentiles: Record<string, Pct>; peers_used: number;
+  piotroski: { score: number; evaluated: number; out_of: number; reading: string; criteria: { id: string; label: string; result: "pass" | "fail" | "na" }[] };
+  altman: { z: number | null; zone: string | null; applicable: boolean; note?: string; components?: Record<string, number> };
+  graham: { value: number | null; price?: number; price_vs_graham?: number | null; note?: string };
+  dcf: { assumptions: { r: number; g1: number; g2: number; years: number }; intrinsic_per_share: number | null; upside_pct?: number | null;
+    reason?: string; terminal_share_pct?: number; note?: string; fcf0: number | null; pv_stage1?: number; pv_terminal?: number;
+    projection?: { year: number; fcf: number; pv: number }[] };
+  dcf_defaults: { r: number; g1: number; g2: number; years: number };
+  dcf_sensitivity: { r: number; g1: number; intrinsic: number | null }[];
+};
+export type VarBlock = { historical_var: number | null; historical_cvar: number | null; parametric_var: number | null; parametric_cvar: number | null };
+export type Risk = {
+  symbol: string; benchmark: string | null; window: number; notes: string[]; disclaimer: string;
+  summary: {
+    rf: number; first: string; last: string; n_returns: number; cagr: number | null; volatility_annual: number | null;
+    sharpe: number | null; sortino: number | null; calmar: number | null; max_drawdown: number | null;
+    max_drawdown_peak: string | null; max_drawdown_trough: string | null; longest_drawdown_bars: number;
+    current_drawdown: number | null; current_drawdown_bars: number; best_day: number | null; worst_day: number | null;
+    var_95: VarBlock; var_99: VarBlock; kelly: { full: number | null; half: number | null; warning: string } | null;
+    vs_benchmark?: { beta: number | null; alpha_annual: number | null; correlation: number | null; r_squared: number | null; n: number };
+  };
+  series: { dates: string[]; equity: (number | null)[]; drawdown: (number | null)[]; volatility: (number | null)[]; sharpe: (number | null)[];
+    beta: (number | null)[] | null; correlation: (number | null)[] | null };
+};
+export type Corr = { symbols: string[]; matrix: (number | null)[][]; days: number };
+export type WatchRow = { symbol: string; last: number | null; change_pct: number | null; spark: number[]; score: number | null; label: string | null };

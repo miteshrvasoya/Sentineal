@@ -27,4 +27,24 @@ async def main() -> None:
         print({k: v for k, v in out.items()})
 
 
+    # Fundamentals (Yahoo statements). Failures are reported, not fatal.
+    import json as _json  # noqa: PLC0415,E401
+    import time as _time
+
+    from app.api.routes_fund import get_fund_provider  # noqa: PLC0415
+    from app.data.models import FundamentalsSnapshot  # noqa: PLC0415
+    from app.features import fundamentals as fd  # noqa: PLC0415
+    from app.providers.base import ProviderError  # noqa: PLC0415
+
+    for sym in get_settings().watchlist:
+        try:
+            raw = await get_fund_provider().fetch(sym)
+            inp = fd.extract_inputs(sym, raw["info"], raw["income"], raw["balance"], raw["cashflow"], int(_time.time()))
+            s.merge(FundamentalsSnapshot(symbol=sym, sector=inp.sector, fetched_at=inp.fetched_at, payload=_json.dumps(inp.to_dict())))
+            s.commit()
+            print({"fundamentals": sym, "sector": inp.sector})
+        except ProviderError as e:
+            print({"fundamentals": sym, "error": str(e)})
+
+
 asyncio.run(main())

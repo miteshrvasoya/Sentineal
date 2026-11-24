@@ -45,7 +45,7 @@ export default function Settings() {
   const dq = useQuery({ queryKey: ["dq", go], queryFn: () => api.quality(go) });
   return (
     <div className="space-y-8">
-      <section>
+      <section data-tour="providers">
         <h1 className="mb-2 text-xl font-semibold">Providers</h1>
         {prov.error && <p role="alert" className="text-sm text-red-500">{(prov.error as Error).message}</p>}
         <table className="w-full text-sm">
@@ -59,7 +59,7 @@ export default function Settings() {
         </table>
         <p className="mt-2 text-xs text-slate-500">API keys are never displayed. Set them in <code>.env</code>.</p>
       </section>
-      <section>
+      <section data-tour="llm-panel">
         <div className="mb-2 flex items-center gap-3">
           <h1 className="text-xl font-semibold">LLM (AI analysis)</h1>
           {llm.data && (
@@ -77,7 +77,7 @@ export default function Settings() {
                 <span key={n} className={`rounded border px-2 py-0.5 ${ok ? "border-green-600 text-green-700 dark:text-green-400" : "border-slate-300 text-slate-500 dark:border-slate-700"}`}>{n}: {ok ? "key set" : "no key"}</span>
               ))}
             </div>
-            <div className="grid max-w-xl gap-2">
+            <div className="grid max-w-xl gap-2" data-tour="llm-budget">
               <Bar v={llm.data.budget.tokens} max={llm.data.budget.token_budget} label={`Today's tokens: ${llm.data.budget.tokens.toLocaleString()} of ${llm.data.budget.token_budget.toLocaleString()}`} />
               <Bar v={llm.data.budget.usd} max={llm.data.budget.usd_budget} label={`Today's estimated spend: $${llm.data.budget.usd.toFixed(4)} of $${llm.data.budget.usd_budget.toFixed(2)}`} />
               {llm.data.budget.exhausted && (
@@ -85,7 +85,7 @@ export default function Settings() {
               )}
               <p className="text-xs text-slate-500">Spend is an estimate from the prices in config/llm.yaml, not your provider invoice.</p>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" data-tour="llm-routing">
               <table className="w-full text-sm">
                 <thead className="text-left text-slate-500"><tr><th>Task</th><th>Routing (first configured provider wins, then falls back)</th></tr></thead>
                 <tbody>
@@ -111,7 +111,7 @@ export default function Settings() {
           </div>
         )}
       </section>
-      <section>
+      <section data-tour="data-quality">
         <h1 className="mb-2 text-xl font-semibold">Data quality</h1>
         <form className="mb-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); setGo(sym.trim().toUpperCase()); }}>
           <input value={sym} onChange={(e) => setSym(e.target.value)} aria-label="Symbol" className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-900" />

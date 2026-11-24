@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import CandleChart from "@/components/CandleChart";
+import ScorecardPanel from "@/components/ScorecardPanel";
 import SymbolTabs from "@/components/SymbolTabs";
 import { api } from "@/lib/api";
 import { DEFAULT_LAYOUT, OVERLAYS, PANES, type Layout } from "@/lib/overlays";
@@ -63,12 +64,12 @@ function SymbolView() {
             </span>
           </div>
         )}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1" data-tour="timeframes">
           {INTERVALS.map((i) => (
             <button key={i} onClick={() => set("i", i)}
               className={`rounded px-2 py-1 text-sm ${i === interval ? "bg-indigo-600 text-white" : "bg-slate-200 dark:bg-slate-800"}`}>{i}</button>
           ))}
-          <label className="ml-3 flex items-center gap-1 text-sm">
+          <label className="ml-3 flex items-center gap-1 text-sm" data-tour="adjusted">
             <input type="checkbox" checked={adjusted} onChange={(e) => set("adj", e.target.checked ? "1" : "0")} /> adjusted
           </label>
         </div>
@@ -86,7 +87,7 @@ function SymbolView() {
           {prices.data.warnings.map((w) => (
             <div key={w} className="rounded border border-amber-400 bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">{w}</div>
           ))}
-          <div className="flex flex-wrap items-center gap-1 text-xs">
+          <div className="flex flex-wrap items-center gap-1 text-xs" data-tour="overlay-chips">
             <span className="text-slate-500">Overlays</span>
             {OVERLAYS.map((o) => (
               <button key={o.id} onClick={() => toggle("overlays", o.id)} aria-pressed={layout.overlays.includes(o.id)}
@@ -97,7 +98,7 @@ function SymbolView() {
               <button key={p.id} onClick={() => toggle("panes", p.id)} aria-pressed={layout.panes.includes(p.id)}
                 className={`rounded px-2 py-0.5 ${layout.panes.includes(p.id) ? "bg-indigo-600 text-white" : "bg-slate-200 dark:bg-slate-800"}`}>{p.label}</button>
             ))}
-            <span className="ml-auto flex gap-1">
+            <span className="ml-auto flex gap-1" data-tour="layout-buttons">
               <button onClick={() => slot("save")} className="rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-800">Save layout</button>
               <button onClick={() => slot("load")} className="rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-800">Load</button>
               <button onClick={() => update({ overlays: [], panes: [] })} className="rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-800">Clear</button>
@@ -111,6 +112,7 @@ function SymbolView() {
           </p>
         </>
       )}
+      <ScorecardPanel symbol={symbol} />
     </div>
   );
 }

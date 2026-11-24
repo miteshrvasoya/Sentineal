@@ -3,6 +3,7 @@ import path from "node:path";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Metadata } from "next";
+import TourButtons from "@/components/TourButtons";
 
 export const metadata: Metadata = { title: "Guide | QuantLens" };
 
@@ -14,6 +15,7 @@ export default function Guide() {
   const toc = md.split("\n").filter((l) => l.startsWith("## ")).map((l) => l.slice(3).trim());
   return (
     <div className="mx-auto max-w-4xl">
+      <TourButtons />
       <nav aria-label="Guide contents" className="mb-6 rounded border border-slate-200 p-3 text-sm dark:border-slate-800">
         <b>Contents</b>
         <ul className="mt-1 grid gap-x-6 sm:grid-cols-2">

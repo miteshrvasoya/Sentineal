@@ -8,7 +8,7 @@ __pycache__/
 *.db
 data/cache/*
 !data/cache/.gitkeep
-models/
+/models/
 node_modules/
 .next/
 frontend/tsconfig.tsbuildinfo

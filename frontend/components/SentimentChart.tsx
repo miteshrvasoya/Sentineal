@@ -33,5 +33,5 @@ export default function SentimentChart({ bars, daily, dark }: { bars: Bar[]; dai
     chart.timeScale().fitContent();
     return () => chart.remove();
   }, [bars, daily, dark]);
-  return <div ref={el} className="h-[340px] w-full rounded border border-slate-200 dark:border-slate-800" data-testid="sentiment-chart" />;
+  return <div ref={el} className="h-[340px] w-full rounded border border-slate-200 dark:border-slate-800" data-testid="sentiment-chart" data-tour="sentiment-chart" />;
 }

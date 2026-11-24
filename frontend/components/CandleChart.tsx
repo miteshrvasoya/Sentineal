@@ -135,7 +135,7 @@ export default function CandleChart({ bars, interval, ind, overlayIds, paneIds }
   }, [bars, interval, dark, ind, idx, overlayIds.join(","), paneKey]);
 
   return (
-    <div className="rounded border border-slate-200 p-1 dark:border-slate-800">
+    <div className="rounded border border-slate-200 p-1 dark:border-slate-800" data-tour="chart">
       <div className="relative">
         <div className="pointer-events-none absolute left-3 top-2 z-10 max-w-[90%] text-xs tabular-nums text-slate-600 dark:text-slate-300">{tip}</div>
         <div ref={mainEl} className="h-[460px] w-full" data-testid="candle-chart" />

@@ -72,9 +72,9 @@ function View() {
         <div className="ml-auto flex items-center gap-2 text-sm">
           <label>window <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="rounded border border-slate-300 bg-white px-1 dark:border-slate-700 dark:bg-slate-900">
             {[14, 30, 90, 180].map((d) => <option key={d}>{d}</option>)}</select> days</label>
-          <button onClick={() => refresh.mutate()} disabled={refresh.isPending} className="rounded bg-indigo-600 px-3 py-1 text-white disabled:opacity-50">
+          <button data-tour="fetch-news" onClick={() => refresh.mutate()} disabled={refresh.isPending} className="rounded bg-indigo-600 px-3 py-1 text-white disabled:opacity-50">
             {refresh.isPending ? "Fetching…" : "Fetch latest news"}</button>
-          <button onClick={() => enrich.mutate()} disabled={enrich.isPending} title="Ask the configured LLM to classify the stored articles"
+          <button data-tour="ai-enrich" onClick={() => enrich.mutate()} disabled={enrich.isPending} title="Ask the configured LLM to classify the stored articles"
             className="rounded border border-indigo-600 px-3 py-1 text-indigo-600 disabled:opacity-50 dark:text-indigo-300">{enrich.isPending ? "Analysing…" : "AI-enrich"}</button>
         </div>
       </div>
@@ -104,14 +104,14 @@ function View() {
       )}
 
       <div className="flex flex-wrap items-center gap-6 rounded border border-slate-200 p-3 dark:border-slate-800">
-        <div><h3 className="mb-1 text-sm font-semibold">Market-wide sentiment (30d)</h3><Gauge v={market.data?.latest ?? null} /></div>
+        <div data-tour="market-gauge"><h3 className="mb-1 text-sm font-semibold">Market-wide sentiment (30d)</h3><Gauge v={market.data?.latest ?? null} /></div>
         {s?.latest && <div className="text-sm tabular-nums"><h3 className="mb-1 font-semibold">Latest day</h3>
           <p>mean {s.latest.mean_sent?.toFixed(2) ?? "–"} · recency-weighted {s.latest.recency_weighted?.toFixed(2) ?? "–"} · {s.latest.n_articles} articles · pos/neg {s.latest.pos_ratio?.toFixed(2) ?? "–"}</p>
           <p className="text-xs text-slate-500">volume z {s.latest.volume_z?.toFixed(1) ?? "–"}{s.latest.volume_spike ? " (spike)" : ""} · momentum {s.latest.sent_mom?.toFixed(2) ?? "–"}{s.latest.divergence ? ` · divergence ${s.latest.divergence > 0 ? "(price up, sentiment falling)" : "(price down, sentiment rising)"}` : ""}</p></div>}
       </div>
 
       {enriched.data && (
-        <section className="rounded border border-slate-200 p-3 dark:border-slate-800">
+        <section data-tour="agreement" className="rounded border border-slate-200 p-3 dark:border-slate-800">
           <div className="flex flex-wrap items-center gap-3"><h2 className="text-lg font-semibold">FinBERT vs LLM second opinion</h2>
             <span className="rounded bg-violet-600 px-2 py-0.5 text-xs text-white">{AIBADGE}</span></div>
           {enriched.data.agreement.n === 0 ? (
@@ -137,9 +137,9 @@ function View() {
       )}
       {s && (
         <section className="grid gap-6 md:grid-cols-2">
-          <div><h2 className="mb-1 text-lg font-semibold">Does sentiment lead price?</h2><LeadLagChart rows={s.lead_lag} />
+          <div data-tour="leadlag"><h2 className="mb-1 text-lg font-semibold">Does sentiment lead price?</h2><LeadLagChart rows={s.lead_lag} />
             <ul className="mt-2 list-disc pl-5 text-xs text-slate-500">{s.notes.map((n) => <li key={n}>{n}</li>)}</ul></div>
-          <div><h2 className="mb-1 text-lg font-semibold">Top terms</h2>
+          <div data-tour="top-terms"><h2 className="mb-1 text-lg font-semibold">Top terms</h2>
             <div className="flex flex-wrap gap-1.5">{s.top_terms.map(([w, n]) => <span key={w} className="rounded bg-slate-200 px-2 py-0.5 dark:bg-slate-800" style={{ fontSize: `${11 + Math.min(10, n)}px` }}>{w}</span>)}</div>
             {s.spikes.length > 0 && <><h3 className="mt-3 text-sm font-semibold">News-volume spikes</h3>
               <ul className="text-sm">{s.spikes.slice(-6).map((d) => <li key={d.date}>{d.date}: {d.n_articles} articles (z {d.volume_z?.toFixed(1)})</li>)}</ul></>}</div>
@@ -148,10 +148,10 @@ function View() {
       {sent.error && news.data && news.data.count > 0 && <p className="text-sm text-amber-600">Sentiment series unavailable: {(sent.error as Error).message}</p>}
 
       {arts.length > 0 && (
-        <section>
+        <section data-tour="feed">
           <div className="mb-2 flex items-center gap-3"><h2 className="text-lg font-semibold">Headlines ({arts.length})</h2>
             <span className="ml-auto flex items-center gap-4 text-sm">
-              <label className="flex items-center gap-1"><input type="checkbox" checked={matOnly} onChange={(e) => setMatOnly(e.target.checked)} /> high materiality only (AI)</label>
+              <label data-tour="materiality-filter" className="flex items-center gap-1"><input type="checkbox" checked={matOnly} onChange={(e) => setMatOnly(e.target.checked)} /> high materiality only (AI)</label>
               <label className="flex items-center gap-1"><input type="checkbox" checked={highOnly} onChange={(e) => setHighOnly(e.target.checked)} /> strong sentiment only (|score| ≥ 0.5)</label></span></div>
           <ul className="divide-y divide-slate-200 dark:divide-slate-800">
             {arts.map((a) => (

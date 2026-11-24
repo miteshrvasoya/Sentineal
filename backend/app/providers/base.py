@@ -163,8 +163,13 @@ class NewsProvider(abc.ABC):
     async def fetch(self, q: NewsQuery) -> list[RawArticle]: ...
 
 
-class FundamentalsProvider(abc.ABC):  # filled in Phase 6
+class FundamentalsProvider(abc.ABC):
+    """Returns {'info': dict, 'income': DataFrame, 'balance': DataFrame, 'cashflow': DataFrame} (yfinance-shaped)."""
     name: str = "base"
+
+    @abc.abstractmethod
+    async def fetch(self, symbol: str) -> dict:
+        ...
 
 
 class MacroProvider(abc.ABC):  # filled in Phase 6

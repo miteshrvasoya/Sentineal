@@ -119,3 +119,13 @@ class ArticleEnrichment(Base):
     is_new_information: Mapped[int] = mapped_column(Integer, default=1)
     summary: Mapped[str] = mapped_column(Text, default="")
     flags: Mapped[str] = mapped_column(Text, default="[]")               # JSON list: injection_suspected, summary_removed...
+
+
+class FundamentalsSnapshot(Base):
+    """Latest raw inputs per symbol (JSON of features.fundamentals.Inputs). Ratios are recomputed on read so DCF
+    assumptions and sector percentiles never need a re-fetch."""
+    __tablename__ = "fundamentals_snapshot"
+    symbol: Mapped[str] = mapped_column(String(32), primary_key=True)
+    sector: Mapped[str] = mapped_column(String(64), default="", index=True)
+    fetched_at: Mapped[int] = mapped_column(BigInteger)
+    payload: Mapped[str] = mapped_column(Text)

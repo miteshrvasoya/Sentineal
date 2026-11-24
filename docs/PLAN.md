@@ -10,6 +10,7 @@ Personal, educational stock **analysis** platform for NSE/BSE. Not investment ad
 - NSE holidays are a curated static table (`app/data/calendar.py`) that must be refreshed yearly. Unknown years fall back to weekday-only and say so.
 - Symbols: bare NSE symbols (`RELIANCE`). Index aliases: `NIFTY 50`, `NIFTY BANK`, `INDIA VIX`. Yahoo mapping lives in the Yahoo provider.
 - Frontend: Next.js (App Router, TS), Tailwind, TanStack Query, lightweight-charts. Plotly arrives with the analytical pages.
+- Phase 6 decisions: Finnhub basic financials and macro series (USDINR, Brent, US 10Y, India VIX features) are deferred (limited Indian coverage / not needed yet). Ratios, scores and the DCF are recomputed from stored raw statement inputs on every read. Charts for risk are small SVG components (Plotly arrives with the model pages).
 - Tests never make live network calls, and never call a live LLM (scripted providers; SDK adapters tested with the SDKs' own response/exception types).
 - LLM: official SDKs (anthropic, openai, google-genai) behind one `LLMProvider` interface; routing in `config/llm.yaml`; the LLM is a *second opinion*, never the default sentiment series; LLM output is forward-only for backtests; spend figures are estimates.
 - Angel One uses the documented SmartAPI REST endpoints directly over `httpx` (async, mockable) instead of the sync `smartapi-python` SDK. Login/candle endpoints, field names and the index tokens are from memory of the public docs and are **unverified against the live API** (no credentials here). Websocket live ticks are deferred.
@@ -28,9 +29,10 @@ Next.js UI ──HTTP──> FastAPI routes ──> services (prices) ──> Pr
 `symbols`, `watchlist`, `prices(symbol, interval, ts, o, h, l, c, adj_close, volume, source)` PK(symbol, interval, ts), `provider_health`.
 Later phases add: articles, article_scores, features, model_registry, jobs, backtests, llm_usage, llm_cache.
 
-## Standing rule: every phase ships a guide section
+## Standing rule: every phase ships a guide section and an in-app tour
 Each phase appends a section to `frontend/content/GUIDE.md` (symlinked at `docs/GUIDE.md`, rendered in-app at `/guide`): what's new, where to find it,
 how to try it, how it works, the trading/ML ideas explained for an engineer who is not a trader, and how far to trust it. Also add a row to its "What's new" table.
+It also ships an **interactive tour** in `frontend/lib/tours.ts`: add `data-tour="..."` markers to the new UI, define the steps (route, target, plain-language text), and set `isNew` on the newest tour only. The tour engine (`components/TourProvider.tsx`) spotlights the real elements, navigates between pages, and falls back to a centred card when an element has no data yet.
 
 ## Phase checklist
 - [x] 1. Scaffold, config, DB, provider abstraction, rate limiter, Yahoo provider, calendar, price API, candlestick page
@@ -39,7 +41,7 @@ how to try it, how it works, the trading/ML ideas explained for an engineer who 
 - [x] 4. Market structure, volume profile, Fibonacci, pivots, S/R, patterns with edge stats
 - [x] 5. News providers, dedupe, ticker resolution, FinBERT, sentiment aggregates, page
 - [x] 5A. LLM layer: provider interface, router, cache, budget, guardrails, news enrichment
-- [ ] 6. Fundamentals, risk, DCF, scorecard
+- [x] 6. Fundamentals, risk, DCF, scorecard
 - [ ] 7. Model interface, statistical models, walk-forward, baselines
 - [ ] 8. ML models, SHAP, ablation, deep model, ensemble, Model Lab
 - [ ] 8A. Context packs, AI Analyst, model explainer, why-did-it-move, backtest reviewer

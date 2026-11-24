@@ -1,3 +1,4 @@
+import pytest
 
 from app.deps import get_router
 from app.main import app
@@ -204,3 +205,106 @@ def test_llm_enrich_then_enriched_view_with_forward_only_flag(client):
 def db_has(model, n):
     from app.data.db import get_session
     return len(next(get_session()).query(model).all()) == n
+
+
+# ---------------- Phase 6: fundamentals, risk, scorecard ----------------
+
+class FakeFund:
+    name = "fake_fund"
+
+    def __init__(self, sector="Energy", fail=False, eps=5.0):
+        self.sector, self.fail, self.eps = sector, fail, eps
+
+    async def fetch(self, symbol):
+        from app.providers.base import ProviderError
+        from tests.test_fundamentals import frames
+        if self.fail:
+            raise ProviderError("down")
+        cur = {"Total Revenue": 1000.0, "Gross Profit": 400.0, "Operating Income": 150.0, "EBIT": 150.0, "EBITDA": 200.0, "Net Income": 100.0,
+               "Total Assets": 1000.0, "Current Assets": 400.0, "Current Liabilities": 200.0, "Total Debt": 300.0,
+               "Cash And Cash Equivalents": 100.0, "Stockholders Equity": 500.0, "Retained Earnings": 300.0,
+               "Ordinary Shares Number": 100.0, "Operating Cash Flow": 150.0, "Capital Expenditure": -40.0,
+               "Total Liabilities Net Minority Interest": 600.0}
+        prev = {**cur, "Total Revenue": 800.0, "Net Income": 80.0}
+        inc, bal, cf = frames(cur, prev)
+        return {"info": {"currentPrice": 100.0, "marketCap": 10000.0, "sharesOutstanding": 100.0, "sector": self.sector,
+                         "trailingEps": self.eps, "bookValue": 50.0, "dividendRate": 2.0}, "income": inc, "balance": bal, "cashflow": cf}
+
+
+def _fund(prov):
+    from app.api.routes_fund import get_fund_provider
+    from app.main import app
+    app.dependency_overrides[get_fund_provider] = lambda: prov
+
+
+def test_fundamentals_endpoints(client):
+    _fund(FakeFund())
+    assert client.get("/fundamentals/TCS").status_code == 404
+    r = client.post("/fundamentals/TCS/refresh").json()
+    assert r["sector"] == "Energy" and r["fields_found"] >= 15 and r["has_prior_year"] is True
+    f = client.get("/fundamentals/TCS").json()
+    assert f["ratios"]["pe"] == 20 and f["ratios"]["roe"] == 0.2 and f["piotroski"]["evaluated"] >= 5 and f["altman"]["applicable"] is True
+    assert f["graham"]["value"] == pytest.approx(75.0, abs=0.01)                                   # sqrt(22.5*5*50)
+    assert any("Sector percentiles need" in n for n in f["notes"]) and f["percentiles"]["pe"]["percentile"] is None
+    base = f["dcf"]["intrinsic_per_share"]
+    assert base > 0 and f["dcf"]["assumptions"] == {"r": 0.12, "g1": 0.2, "g2": 0.05, "years": 5} and f["dcf_defaults"]["g1"] == 0.2
+    hi = client.get("/fundamentals/TCS?r=0.10&g1=0.10&g2=0.04&years=7").json()["dcf"]
+    assert hi["assumptions"]["years"] == 7 and hi["intrinsic_per_share"] != base
+    assert client.get("/fundamentals/TCS?r=0.04&g2=0.05").status_code == 422
+    assert client.get("/fundamentals/TCS?years=99").status_code == 422
+    _fund(FakeFund(fail=True))
+    assert client.post("/fundamentals/INFY/refresh").status_code == 502
+
+
+def test_sector_percentiles_appear_with_enough_peers(client):
+    _fund(FakeFund())
+    for s in ("AAA", "BBB", "CCC", "DDD"):
+        client.post(f"/fundamentals/{s}/refresh")
+    f = client.get("/fundamentals/AAA").json()
+    assert f["peers_used"] == 3 and f["percentiles"]["pe"]["percentile"] == 50.0                  # all peers tie -> half
+    _fund(FakeFund(sector="IT"))
+    client.post("/fundamentals/EEE/refresh")
+    assert client.get("/fundamentals/EEE").json()["peers_used"] == 0                               # different sector
+
+
+def _store(symbol, n, seed, drift=0.0004):
+    import numpy as np
+    import pandas as pd
+
+    from app.data.db import get_session
+    from app.data.prices import upsert_prices
+    rng = np.random.default_rng(seed)
+    c = 100 * np.cumprod(1 + rng.normal(drift, 0.01, n))
+    idx = pd.date_range(end=pd.Timestamp.now(tz="UTC").normalize(), periods=n, freq="B", tz="UTC")
+    df = pd.DataFrame({"open": c, "high": c * 1.005, "low": c * 0.995, "close": c, "adj_close": c, "volume": 1e5}, index=idx)
+    upsert_prices(next(get_session()), symbol, "1d", df, "t")
+
+
+def test_risk_endpoint_correlation_and_notes(client):
+    _store("AAA", 400, 1)
+    j = client.get("/risk/AAA").json()
+    assert j["benchmark"] is None and any("Benchmark" in n for n in j["notes"]) and j["summary"]["vs_benchmark"] is None if "vs_benchmark" in j["summary"] else True
+    _store("NIFTY 50", 400, 2)
+    j = client.get("/risk/AAA?rf=0.05&window=40").json()
+    s = j["summary"]
+    assert j["benchmark"] == "NIFTY 50" and s["rf"] == 0.05 and s["vs_benchmark"]["beta"] is not None and s["max_drawdown"] <= 0
+    assert s["var_99"]["historical_var"] >= s["var_95"]["historical_var"] > 0 and "Display only" in s["kelly"]["warning"]
+    ser = j["series"]
+    assert len(ser["dates"]) == len(ser["equity"]) == len(ser["drawdown"]) == len(ser["beta"]) and ser["equity"][0] == pytest.approx(100, abs=3)
+    assert client.get("/risk/ZZZ").status_code == 404
+    _store("BBB", 400, 3)
+    m = client.get("/risk/correlation?symbols=AAA,BBB,NIFTY%2050").json()
+    assert m["symbols"] == ["AAA", "BBB", "NIFTY 50"] and m["matrix"][0][0] == pytest.approx(1.0)
+    assert client.get("/risk/correlation?symbols=AAA").status_code == 404
+
+
+def test_scorecard_and_watchlist_summary(client):
+    for s, seed in (("RELIANCE", 1), ("TCS", 2)):
+        _store(s, 300, seed)
+    sc = client.get("/scorecard/RELIANCE").json()
+    assert sc["composite"] is not None and set(sc["subscores"]) == {"trend", "momentum", "volume_flow", "volatility", "sentiment", "valuation"}
+    assert sc["subscores"]["valuation"]["score"] is None and "disclaimer" in sc
+    assert client.get("/scorecard/NOPE").status_code == 404
+    w = {x["symbol"]: x for x in client.get("/watchlist/summary").json()}
+    assert w["RELIANCE"]["label"] in ("leaning positive", "leaning negative", "mixed") and len(w["RELIANCE"]["spark"]) == 30
+    assert w["RELIANCE"]["change_pct"] is not None and w["INFY"]["last"] is None and w["INFY"]["label"] is None   # no data: blank, not an error

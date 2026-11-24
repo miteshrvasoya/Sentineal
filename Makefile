@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend test seed lint install
+.PHONY: dev backend frontend test seed lint install tour-check
 install:
 	cd backend && uv sync
 	cd frontend && npm install --no-audit --no-fund
@@ -15,3 +15,6 @@ lint:
 	cd backend && uv run ruff check .
 seed:
 	cd backend && uv run python scripts/seed.py
+
+tour-check:
+	cd frontend && node e2e/tour-check.cjs
