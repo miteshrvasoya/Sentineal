@@ -103,7 +103,7 @@ def unsupported_numbers(output_text: str, context: Any, allow_small_ints: bool =
     for v, dec, pct in extract_numbers(output_text):
         if allow_small_ints and dec == 0 and abs(v) <= 10:
             continue
-        ok = any(round(c, dec) == round(v, dec) or round(c * 100, dec) == round(v, dec) or round(abs(c), dec) == round(abs(v), dec)
+        ok = any(round(c, dec) == round(v, dec) or round(c * 100, dec) == round(v, dec) or round(abs(c), dec) == round(abs(v), dec) or round(abs(c) * 100, dec) == round(abs(v), dec)
                  for c in pool)
         if not ok:
             bad.append(f"{v:g}{'%' if pct else ''}")

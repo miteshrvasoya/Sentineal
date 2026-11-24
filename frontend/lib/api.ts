@@ -81,6 +81,10 @@ export const api = {
   pairs: (symbol: string) => get<Pairs>(`/analysis/pairs/${encodeURIComponent(symbol)}`),
   ablation: (symbol: string, horizon: number) => get<Ablation>(`/models/${encodeURIComponent(symbol)}/ablation?horizon=${horizon}`),
   registry: (symbol: string) => get<RegistryRow[]>(`/models/${encodeURIComponent(symbol)}/registry`),
+  aiAnalyst: (symbol: string, horizon = 5) => post<AnalystReport>(`/ai/analyst/${encodeURIComponent(symbol)}?horizon=${horizon}`),
+  aiExplainModel: (symbol: string, model: string, horizon: number) => postJson<ModelExplanation>(`/ai/explain-model/${encodeURIComponent(symbol)}`, { model, horizon }),
+  aiExplainMove: (symbol: string, start?: string, end?: string) => postJson<MoveExplanation>(`/ai/explain-move/${encodeURIComponent(symbol)}`, { start, end }),
+  aiBacktestReview: (strategy: string, metrics: Record<string, unknown>) => postJson<BacktestReviewOut>("/ai/backtest-review", { strategy, metrics }),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -274,3 +278,15 @@ export type Ablation = {
 };
 export type RegistryRow = { model: string; horizon: number; version: number; trained_at: number; train_start: string; train_end: string; n_train: number;
   feature_hash: string; verdict: string | null; brier_skill: number | null; hit_rate: number | null; params: Record<string, unknown> };
+
+export type Claim = { text: string; evidence: string[] };
+export type AiBase = { available: boolean; badge: string; reason?: string; facts: Record<string, string | number | boolean>; missing: string[];
+  withheld?: boolean; problems?: string[]; error?: string; provider?: string; model?: string; cached?: boolean; repaired?: boolean; prompt?: string };
+export type AnalystReport = AiBase & { report: null | { stance: string; headline: string; plain_summary: string; in_favour: Claim[]; against: Claim[]; conflicts: Claim[]; data_gaps: string[] } };
+export type ModelExplanation = AiBase & { report: null | { verdict_in_words: string; plain_summary: string; drivers: Claim[]; cautions: Claim[] } };
+export type MoveArticle = { id: string; title: string; source: string; url: string; published?: string; injection_flags?: string[] };
+export type MoveExplanation = AiBase & { start: string; end: string; articles: MoveArticle[];
+  report: null | { plain_summary: string; market_context: Claim; candidates: { text: string; article_ids: string[]; evidence: string[]; strength: string }[]; unexplained: string } };
+export type RedFlag = { id: string; message: string };
+export type BacktestReviewOut = AiBase & { red_flags: RedFlag[];
+  report: null | { verdict: string; plain_summary: string; concerns: Claim[]; strengths: Claim[]; what_to_check_next: string[] } };

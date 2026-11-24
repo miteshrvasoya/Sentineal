@@ -23,11 +23,25 @@ const NW = "/s/{symbol}/news";
 const FD = "/s/{symbol}/fundamentals";
 const MD = "/s/{symbol}/models";
 const LB = "/s/{symbol}/lab";
+const AN = "/s/{symbol}/analyst";
 
 
 export const TOURS: TourDef[] = [
   {
-    id: "phase-8", phase: "Phase 8", title: "Machine learning, ensembles and the Model Lab", isNew: true,
+    id: "phase-8a", phase: "Phase 8A", title: "The AI analyst, with guardrails", isNew: true,
+    blurb: "An optional AI that explains the computed facts in plain language, cites its evidence, and is blocked from inventing numbers or giving advice.",
+    steps: [
+      { title: "AI that narrates, never calculates", body: "Phase 8A adds four AI helpers: an analyst report, a model explainer, a 'why did it move?' tool and a backtest reviewer.\n\nThe rule behind all of them: Python computes every number, the AI only describes them. Each answer must cite the facts it uses, may only quote numbers that exist in those facts, and is thrown away if it gives advice. They are optional: with no API key everything else still works." },
+      { route: AN, target: "ai-analyst", title: "The AI analyst", body: "One button writes a report from the stored facts: price, risk, scorecard, fundamentals, news and model verdicts. It lists points in favour, points against, where signals disagree and what data is missing.\n\nThe 'stance' is the weight of evidence in the facts, not a recommendation. Grey chips under each point are citations; hover one to see the value it refers to." },
+      { route: AN, target: "ai-facts", title: "See exactly what the AI saw", body: "Open this to see the full list of facts handed to the AI. If something it says is not in this list, the safety check rejects the answer. Think of it as the AI's only input file.", note: "Appears after you click 'Write the report' (works without an API key: it then shows only the facts)." },
+      { route: AN, target: "ai-move", title: "Why did it move?", body: "Pick a period (or leave it empty for the last five days). The software computes the stock's move and the index's move, collects stored news, and the AI proposes explanations that cite specific articles.\n\nIt can show association, never proof. If the market moved the same amount, it says the move was probably market-wide. News text is fenced as untrusted data, and articles that contain instruction-like text are flagged." },
+      { route: AN, target: "ai-review", title: "Backtest reviewer", body: "A sceptical reviewer for backtest results. Automatic red flags (few trades, no costs, no out-of-sample data, too good to be true) always run, even without an LLM. The AI then explains how far the result can be trusted. Try the deliberately bad example." },
+      { route: MD, target: "ai-explain-model", title: "Explain a model in words", body: "On the Models page, under 'Why does the model say that?', this button turns SHAP drivers and the walk-forward verdict into plain language, including the honest 'no demonstrated edge' message when that is the result.", note: "Appears after running an ML model such as lgbm." },
+      { title: "That is Phase 8A", body: "Takeaway: treat AI text as a readable summary of facts you can check, never as a source of facts. Next: the backtester with Indian trading costs (Phase 9)." },
+    ],
+  },
+  {
+    id: "phase-8", phase: "Phase 8", title: "Machine learning, ensembles and the Model Lab",
     blurb: "Gradient-boosted and deep models, explained with SHAP, blended into an ensemble, and held to the same honest test.",
     steps: [
       { title: "More powerful models, same strict judge", body: "Phase 8 adds machine-learning models (LightGBM, XGBoost, random forest, logistic regression, an experimental GRU/LSTM), an ensemble that blends your picks, and a Model Lab for dissecting results.\n\nMore powerful models overfit more easily. So each one is shrunk toward the plain base rate unless it proves skill on days it never trained on. Expect many to end up at 'no demonstrated edge'." },

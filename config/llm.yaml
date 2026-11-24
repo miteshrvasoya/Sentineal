@@ -41,5 +41,7 @@ tasks:
   # Used by later phases (listed now so the Settings page shows the whole routing table):
   analyst:        { temperature: 0.2, max_tokens: 3000, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }, { provider: openai, model: gpt-4o-mini }] }
   chat_agent:     { temperature: 0.2, max_tokens: 3000, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }] }
+  explain_model:  { temperature: 0.2, max_tokens: 1500, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }, { provider: openai, model: gpt-4o-mini }] }
+  backtest_review: { temperature: 0.2, max_tokens: 2000, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }, { provider: openai, model: gpt-4o-mini }] }
   explain_move:   { temperature: 0.2, max_tokens: 1500, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }] }
   briefing:       { temperature: 0.2, max_tokens: 3000, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }] }

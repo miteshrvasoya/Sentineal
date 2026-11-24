@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import json
 import time
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -15,7 +17,9 @@ from app.data.db import get_session
 from app.data.models import Article, ArticleEnrichment, ArticleScore, ArticleTicker
 from app.deps import get_llm_router
 from app.llm.eval import run_eval
+from app.llm.packs import build_symbol_pack
 from app.llm.router import LLMRouter
+from app.llm.tasks import analyst as ai
 from app.llm.tasks.news_enrich import enrich_pending
 from app.llm.tasks.sentiment_llm import LLM_PREFIX, compare_with_reference, score_pending_llm
 from app.nlp.entities import get_resolver
@@ -109,3 +113,96 @@ async def llm_eval(r: LLMRouter = Depends(get_llm_router)) -> dict:
     if not r.available("sentiment_llm"):
         raise HTTPException(503, "LLM unavailable: no provider configured")
     return await run_eval(r, get_scorer(), get_resolver())
+
+
+# ---------------- Phase 8A: AI analyst, model explainer, why-did-it-move, backtest reviewer ----------------
+
+def _unavailable(task: str, r: LLMRouter, pack: dict) -> dict | None:
+    if r.available(task):
+        return None
+    return {"available": False, "reason": "No LLM provider configured for this task. Add an API key to .env (see config/llm.yaml). "
+            "The facts below are what the AI would have been given.", "badge": BADGE, "facts": pack["facts"], "missing": pack["missing"]}
+
+
+async def _guard(coro) -> dict:  # type: ignore[no-untyped-def]
+    from app.llm.base import BudgetExceeded, LLMUnavailable
+    try:
+        return await coro
+    except BudgetExceeded as e:
+        return {"available": True, "report": None, "error": f"Daily AI budget reached: {e}"}
+    except LLMUnavailable as e:
+        return {"available": True, "report": None, "error": f"No provider could answer: {e}"}
+
+
+@router.post("/ai/analyst/{symbol}")
+async def ai_analyst(symbol: str, horizon: int = Query(5), db: Session = Depends(get_session), r: LLMRouter = Depends(get_llm_router)) -> dict:
+    sym = _known(symbol)
+    pack = build_symbol_pack(db, sym, horizon)
+    if not pack["facts"]:
+        raise HTTPException(404, f"No stored data for {sym}. Open its chart or run make seed first.")
+    if (u := _unavailable(ai.ANALYST, r, pack)) is not None:
+        return u
+    out = await _guard(ai.analyst_report(r, pack))
+    return {"available": True, "badge": BADGE, "symbol": sym, "facts": pack["facts"], "missing": pack["missing"], **out}
+
+
+class ExplainModelBody(BaseModel):
+    model: str
+    horizon: int = 5
+
+
+@router.post("/ai/explain-model/{symbol}")
+async def ai_explain_model(symbol: str, body: ExplainModelBody, db: Session = Depends(get_session),
+                           r: LLMRouter = Depends(get_llm_router)) -> dict:
+    from app.api.routes_models import _views_and_metrics
+    sym = _known(symbol)
+    views, metrics, _ = _views_and_metrics(db, sym, body.horizon)
+    if body.model not in views:
+        raise HTTPException(404, f"no stored run of {body.model} for {sym} at horizon {body.horizon}. Run it on the Models page first.")
+    pack = ai.model_pack(sym, views[body.model], metrics.get(body.model), body.horizon)
+    if (u := _unavailable(ai.EXPLAIN_MODEL, r, pack)) is not None:
+        return u
+    out = await _guard(ai.explain_model(r, pack, body.model))
+    return {"available": True, "badge": BADGE, "symbol": sym, "model": body.model, "facts": pack["facts"], "missing": pack["missing"], **out}
+
+
+class ExplainMoveBody(BaseModel):
+    start: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+@router.post("/ai/explain-move/{symbol}")
+async def ai_explain_move(symbol: str, body: ExplainMoveBody, db: Session = Depends(get_session), r: LLMRouter = Depends(get_llm_router)) -> dict:
+    from app.data.analysis import close_series
+    sym = _known(symbol)
+    c = close_series(db, sym)
+    if c is None or len(c) < 10:
+        raise HTTPException(404, f"No stored prices for {sym}.")
+    end = body.end or str(c.index[-1].date())
+    start = body.start or str(c.index[-min(5, len(c))].date())
+    try:
+        pack = ai.move_pack(db, sym, start, end)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    arts = ai.articles_for_move(db, sym, start, end)
+    if (u := _unavailable(ai.EXPLAIN_MOVE, r, pack)) is not None:
+        return {**u, "articles": [{"id": a["article_id"], "title": a["title"], "source": a["source"], "url": a["url"]} for a in arts],
+                "start": start, "end": end}
+    out = await _guard(ai.explain_move(r, pack, arts, start, end))
+    return {"available": True, "badge": BADGE, "symbol": sym, "start": start, "end": end, "facts": pack["facts"], "missing": pack["missing"], **out}
+
+
+class BacktestReviewBody(BaseModel):
+    strategy: str = Field(max_length=80)
+    metrics: dict[str, Any]
+
+
+@router.post("/ai/backtest-review")
+async def ai_backtest_review(body: BacktestReviewBody, r: LLMRouter = Depends(get_llm_router)) -> dict:
+    """Deterministic red flags always; the LLM review is added when a provider is configured."""
+    pack = ai.backtest_pack(body.strategy, body.metrics)
+    if not r.available(ai.BACKTEST_REVIEW):
+        return {"available": False, "badge": BADGE, "red_flags": pack["flags"], "facts": pack["facts"],
+                "reason": "No LLM provider configured; showing the automatic red-flag checks only."}
+    out = await _guard(ai.review_backtest(r, body.strategy, pack))
+    return {"available": True, "badge": BADGE, "facts": pack["facts"], "red_flags": pack["flags"], **out}

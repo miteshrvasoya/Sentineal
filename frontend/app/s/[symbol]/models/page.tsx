@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Fragment, Suspense, useEffect, useState } from "react";
+import { AiFooter, AiStatus, ClaimList } from "@/components/AiParts";
 import { BarList, CalibrationChart, ConeChart, FanChart, PdpChart, ProbBar, PushBars, RegimeStrip } from "@/components/ModelCharts";
 import SvgLine from "@/components/SvgLine";
 import SymbolTabs from "@/components/SymbolTabs";
@@ -114,6 +115,23 @@ function AblationPanel({ symbol, horizon }: { symbol: string; horizon: number })
         </>
       )}
     </section>
+  );
+}
+
+function ExplainModel({ symbol, horizon, model }: { symbol: string; horizon: number; model: string }) {
+  const m = useMutation({ mutationFn: () => api.aiExplainModel(symbol, model, horizon) });
+  const d = m.data, r = d?.report;
+  return (
+    <div className="mt-3 rounded border border-dashed border-slate-300 p-2 dark:border-slate-700" data-tour="ai-explain-model">
+      <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">Explain this model in words</h3>
+        <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] text-white">AI-generated</span>
+        <button onClick={() => m.mutate()} disabled={m.isPending} className="ml-auto rounded bg-indigo-600 px-2 py-0.5 text-xs text-white disabled:opacity-50">{m.isPending ? "Writing…" : "Explain"}</button></div>
+      {m.error && <p className="text-sm text-red-600" role="alert">{(m.error as Error).message}</p>}
+      {d && <div className="mt-1"><AiStatus d={d} report={r} /></div>}
+      {r && d && <div className="mt-1 space-y-2 text-sm"><p className="font-medium">{r.verdict_in_words}</p><p>{r.plain_summary}</p>
+        <ClaimList title="What it leaned on" items={r.drivers} facts={d.facts} /><ClaimList title="Cautions" items={r.cautions} facts={d.facts} tone="warn" /></div>}
+      {d && <AiFooter d={d} />}
+    </div>
   );
 }
 
@@ -301,6 +319,7 @@ function View() {
                 <div className="flex flex-wrap gap-3">{(ex.partial_dependence ?? []).map((d) => <PdpChart key={d.feature} feature={d.feature} grid={d.grid} p_up={d.p_up} />)}</div>
                 <p className="mt-1 text-[11px] text-slate-500">Average predicted chance of UP as one feature moves across its usual range, others held as observed.</p></div>
             </div>
+            <ExplainModel symbol={symbol} horizon={horizon} model={cur.name} />
             <p className="mt-2 text-xs text-slate-500">{ex.shap_note} These explain what the model learned, which is not the same as what drives the market: with weak signals the explanation can be a story about noise. Check the walk-forward verdict first.</p>
           </section>);
       })()}

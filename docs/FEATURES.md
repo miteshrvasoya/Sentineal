@@ -103,3 +103,7 @@ See the in-app Guide for the full walkthrough and the Phase 7 tour. Summary:
 ## Phase 8: machine learning, ensembles and the Model Lab (`app/models/ml*.py`, `deep.py`, `ensemble.py`, `app/eval/purged_cv.py`)
 
 See the in-app Guide and the Phase 8 tour. Summary: LightGBM, XGBoost, random forest, logistic regression, news-only and price+news LightGBM, experimental GRU/LSTM (optional `deep` extra); shrinkage toward the base rate with a one-standard-error rule; SHAP, permutation importance and partial dependence; a causal ensemble; `GET /models/{symbol}/ablation`; the Model Lab page `/s/{symbol}/lab`; registry drift check.
+
+## Phase 8A: AI analyst, model explainer, why-did-it-move, backtest reviewer (`app/llm/packs.py`, `app/llm/tasks/analyst.py`)
+
+Endpoints: `POST /ai/analyst/{symbol}`, `POST /ai/explain-model/{symbol}`, `POST /ai/explain-move/{symbol}`, `POST /ai/backtest-review`. Frontend: `/s/{symbol}/analyst`, explain button on the Models page. Prompts: `analyst`, `explain_model`, `explain_move`, `backtest_review` (v1). Without a provider the endpoints return `available: false` plus the facts.

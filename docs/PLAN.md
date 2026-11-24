@@ -11,6 +11,7 @@ Personal, educational stock **analysis** platform for NSE/BSE. Not investment ad
 - Symbols: bare NSE symbols (`RELIANCE`). Index aliases: `NIFTY 50`, `NIFTY BANK`, `INDIA VIX`. Yahoo mapping lives in the Yahoo provider.
 - Frontend: Next.js (App Router, TS), Tailwind, TanStack Query, lightweight-charts. Plotly arrives with the analytical pages.
 - Phase 6 decisions: Finnhub basic financials and macro series (USDINR, Brent, US 10Y, India VIX features) are deferred (limited Indian coverage / not needed yet). Ratios, scores and the DCF are recomputed from stored raw statement inputs on every read. Charts for risk are small SVG components (Plotly arrives with the model pages).
+- Phase 8A decisions: AI output must cite fact ids from a context pack and may only quote numbers in it (fractions may appear as percentages; windows in fact ids are quotable); advice, invented numbers or unknown citations trigger one regeneration, then the answer is withheld. AI output is display-only (never a feature). The backtest reviewer has deterministic red flags that run without an LLM; Phase 9 supplies the metrics automatically.
 - Phase 8 decisions: ML models shrink their probabilities toward the training base rate, with the weight chosen on held-out days by a one-standard-error rule (temperature scaling was rejected: it pushed useless models below the base rate). Features are stationary and label windows purged; interpretation (SHAP, permutation, PDP) runs on held-out rows. Ensemble weights are causal and the ensemble counts in the Bonferroni correction. Deep models are optional (PyTorch extra) and experimental. Sentiment features come only from the non-LLM scorer. Triple-barrier labels and fractional differentiation are library-only for now.
 - Phase 7 decisions: models predict a distribution of the h-day return (probabilities of up/flat/down plus quantiles); "flat" = |log return| < 0.25 x trailing-60d daily vol x sqrt(h) (causal). The verdict is a one-sided Diebold-Mariano test (Newey-West) on per-forecast Brier loss vs the base-rate baseline, Bonferroni-corrected over the models tried; default forecast stride = horizon so outcomes never overlap. HMM regime probabilities are FILTERED (forward pass only), never smoothed. GARCH/ARIMA reuse fitted parameters between refits (arch `fix`, statsmodels `smooth`). Jobs are an in-process asyncio manager backed by a `jobs` table. Purged K-fold and meta-labeling arrive with the ML models in Phase 8; macro features (USDINR, Brent, US10Y, India VIX) are still deferred.
 - Tests never make live network calls, and never call a live LLM (scripted providers; SDK adapters tested with the SDKs' own response/exception types).
@@ -46,7 +47,7 @@ It also ships an **interactive tour** in `frontend/lib/tours.ts`: add `data-tour
 - [x] 6. Fundamentals, risk, DCF, scorecard
 - [x] 7. Model interface, statistical models, walk-forward, baselines
 - [x] 8. ML models, SHAP, ablation, deep model, ensemble, Model Lab
-- [ ] 8A. Context packs, AI Analyst, model explainer, why-did-it-move, backtest reviewer
+- [x] 8A. Context packs, AI Analyst, model explainer, why-did-it-move, backtest reviewer
 - [ ] 9. Backtester with Indian cost model, bootstrap, UI
 - [ ] 10. Screener, scheduler, Learn, docs, Docker, CI
 - [ ] 10A. Chat agent, NL screener, briefing, red flags, LLM eval, injection tests

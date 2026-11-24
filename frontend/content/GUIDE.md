@@ -10,7 +10,8 @@ This table grows every phase. The newest row is on top.
 
 | Phase | Theme | One-line summary | Status |
 |---|---|---|---|
-| **8** | **Machine learning, ensembles, Model Lab** | Gradient-boosted, forest, logistic and experimental deep models with SHAP explanations, a news ablation, a causal ensemble and a Model Lab, all held to the same walk-forward test | **NEW** |
+| **8A** | **The AI analyst, with guardrails** | Optional AI that explains computed facts, why a stock moved, a model's output and a backtest's trustworthiness, with citations and safety checks | **NEW** |
+| 8 | Machine learning, ensembles, Model Lab | Gradient-boosted, forest, logistic and experimental deep models with SHAP explanations, a news ablation, a causal ensemble and a Model Lab, all held to the same walk-forward test | done |
 | 7 | Forecast models, tested honestly | Eight statistical models plus baselines, judged out of sample with walk-forward tests, calibration and corrected significance | done |
 | 6 | Fundamentals, risk, scorecard | Ratios and health scores, an editable DCF, risk metrics, and a transparent signal scorecard in the watchlist | done |
 | 5A | LLM layer | Optional AI that classifies news (event type, importance, summary), gives a second sentiment opinion, with budgets and guardrails | done |
@@ -20,7 +21,7 @@ This table grows every phase. The newest row is on top.
 | 2 | Data reliability | Angel One broker data, incremental backfill, data-quality report | done |
 | 1 | Foundations | Price API, candlestick page, provider fallback, NSE calendar | done |
 
-Coming next: the AI analyst (8A), a backtester (9), a screener and scheduler (10), and the chat agent and briefings (10A).
+Coming next: a backtester (9), a screener and scheduler (10), and the chat agent and briefings (10A).
 
 ## Running it
 
@@ -47,7 +48,48 @@ Every phase has an **interactive tour** inside the app, so you can see what it a
 
 ---
 
-## Phase 8: machine learning, ensembles and the Model Lab (NEW)
+## Phase 8A: the AI analyst, with guardrails (NEW)
+
+> **Tour:** open the **Tour** menu and pick "Phase 8A". It walks through the new **AI analyst** tab and the explain button on the Models page.
+
+### What's new
+
+Four optional AI helpers. They need an LLM API key in `.env` (see `config/llm.yaml`); without one every page still works and the AI parts show the facts they would have used.
+
+1. **AI analyst** (`/s/SYMBOL/analyst`): a plain-language report: stance, points in favour, points against, disagreements, missing data.
+2. **Why did it move?**: pairs a price move with the index move and stored news and proposes explanations that cite articles.
+3. **Explain this model** (Models page): turns SHAP drivers and the walk-forward verdict into words.
+4. **Backtest reviewer**: red-flag checks plus an AI review of a backtest result summary. The Phase 9 backtester will feed it automatically.
+
+### Try it
+
+1. Open a stock with stored data, then the **AI analyst** tab and click **Write the report**.
+2. Open "The facts the AI was given" and hover a grey citation chip: it shows the value behind the claim.
+3. Try **Why did it move?** with the default dates.
+4. Press **Review** on the deliberately bad backtest example: the red flags appear even with no key.
+
+### How it works (engineering view)
+
+- **Context pack = the AI's only input file.** `app/llm/packs.py` flattens computed results into `id = value` lines (for example `price.ret_21d = -0.034`). Think of it as the typed request object for a function that cannot read the database itself.
+- **Structured output.** Each task returns JSON validated by a schema. Every claim has an `evidence` list of fact ids.
+- **Post-checks** (same machinery as the news tasks): the output is rejected if it contains trading advice, a number that is not in the pack (a fraction may appear as a percentage, and a window named in a fact id such as 21 in `ret_21d` may be quoted), or a citation of an id that does not exist. On failure the router regenerates once with the problems listed; if it still fails the answer is withheld and the page says so.
+- **Untrusted news.** Articles in "why did it move" are fenced in nonce-tagged blocks and scanned for injection phrases. The AI is told they are data. This reduces the risk of prompt injection but cannot eliminate it, which is why the output checks exist as a second layer.
+- **Forward-only.** AI output is displayed only. It is never stored as a feature and never used to train or backtest anything.
+- **Budget and fallback.** Calls go through the same router: provider fallback, caching, and a daily token/USD hard stop.
+- **Backtest red flags are deterministic Python:** too few trades, costs ignored, no out-of-sample data, short history, profit concentrated in five trades, many tuned parameters, a Sharpe ratio above 3, a non-significant bootstrap p-value.
+
+### Ideas explained
+
+- **Association is not cause.** News and a price move at the same time does not mean one caused the other. The tool says "coincided with", and also tells you when the whole market moved.
+- **Overfitting a backtest** is like tuning a unit test until it passes: the more knobs you tuned on the same data, the less a pass means.
+
+### How far to trust it
+
+- Safety checks catch obvious problems, not every subtle one. A fluent paragraph can still be a misleading framing of correct numbers.
+- All tests here use scripted fake models; no live LLM was run in development, so real-world phrasing and refusal rates are unmeasured.
+- The reviewer's input is a summary you provide until Phase 9.
+
+## Phase 8: machine learning, ensembles and the Model Lab
 
 > **Tour:** open the **Tour** menu in the top bar and pick "Phase 8". It walks through the Models page and the new Model Lab.
 
@@ -629,6 +671,7 @@ Yahoo Finance is an unofficial source that can break without notice, which is wh
 | **Support / resistance** | Price levels where the price has repeatedly turned up / down |
 | **Volatility** | How much price moves, usually the standard deviation of returns |
 | **VWAP** | Average price weighted by volume traded |
+| **Context pack** | The list of computed facts an AI is allowed to talk about (Phase 8A) |
 | **Ensemble** | A weighted blend of several models' forecasts (Phase 8) |
 | **SHAP** | Splits one prediction into per-feature contributions (Phase 8) |
 | **Walk-forward validation** | Training on the past, testing on the next unseen period, then rolling forward (Phase 7) |
