@@ -129,3 +129,37 @@ class FundamentalsSnapshot(Base):
     sector: Mapped[str] = mapped_column(String(64), default="", index=True)
     fetched_at: Mapped[int] = mapped_column(BigInteger)
     payload: Mapped[str] = mapped_column(Text)
+
+
+class ModelRun(Base):
+    """Model registry: one row per (symbol, model, run). Keeps the forecast, parameters, data window and walk-forward
+    metrics so performance drift and decay can be tracked across versions."""
+    __tablename__ = "model_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    model: Mapped[str] = mapped_column(String(32), index=True)
+    horizon: Mapped[int] = mapped_column(Integer)
+    version: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(16), default="statistical")
+    trained_at: Mapped[int] = mapped_column(BigInteger)
+    train_start: Mapped[str] = mapped_column(String(10), default="")
+    train_end: Mapped[str] = mapped_column(String(10), default="")
+    n_train: Mapped[int] = mapped_column(Integer, default=0)
+    feature_hash: Mapped[str] = mapped_column(String(32), default="")
+    params: Mapped[str] = mapped_column(Text, default="{}")
+    view: Mapped[str] = mapped_column(Text, default="{}")
+    metrics: Mapped[str] = mapped_column(Text, default="")
+
+
+class JobRecord(Base):
+    __tablename__ = "jobs"
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(24))
+    symbol: Mapped[str] = mapped_column(String(32), default="")
+    status: Mapped[str] = mapped_column(String(12), default="queued")      # queued | running | done | failed
+    progress: Mapped[float] = mapped_column(Float, default=0.0)
+    created: Mapped[int] = mapped_column(BigInteger, default=0)
+    started: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    finished: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    result: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str] = mapped_column(Text, default="")

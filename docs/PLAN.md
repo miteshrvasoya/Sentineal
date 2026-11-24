@@ -11,6 +11,7 @@ Personal, educational stock **analysis** platform for NSE/BSE. Not investment ad
 - Symbols: bare NSE symbols (`RELIANCE`). Index aliases: `NIFTY 50`, `NIFTY BANK`, `INDIA VIX`. Yahoo mapping lives in the Yahoo provider.
 - Frontend: Next.js (App Router, TS), Tailwind, TanStack Query, lightweight-charts. Plotly arrives with the analytical pages.
 - Phase 6 decisions: Finnhub basic financials and macro series (USDINR, Brent, US 10Y, India VIX features) are deferred (limited Indian coverage / not needed yet). Ratios, scores and the DCF are recomputed from stored raw statement inputs on every read. Charts for risk are small SVG components (Plotly arrives with the model pages).
+- Phase 7 decisions: models predict a distribution of the h-day return (probabilities of up/flat/down plus quantiles); "flat" = |log return| < 0.25 x trailing-60d daily vol x sqrt(h) (causal). The verdict is a one-sided Diebold-Mariano test (Newey-West) on per-forecast Brier loss vs the base-rate baseline, Bonferroni-corrected over the models tried; default forecast stride = horizon so outcomes never overlap. HMM regime probabilities are FILTERED (forward pass only), never smoothed. GARCH/ARIMA reuse fitted parameters between refits (arch `fix`, statsmodels `smooth`). Jobs are an in-process asyncio manager backed by a `jobs` table. Purged K-fold and meta-labeling arrive with the ML models in Phase 8; macro features (USDINR, Brent, US10Y, India VIX) are still deferred.
 - Tests never make live network calls, and never call a live LLM (scripted providers; SDK adapters tested with the SDKs' own response/exception types).
 - LLM: official SDKs (anthropic, openai, google-genai) behind one `LLMProvider` interface; routing in `config/llm.yaml`; the LLM is a *second opinion*, never the default sentiment series; LLM output is forward-only for backtests; spend figures are estimates.
 - Angel One uses the documented SmartAPI REST endpoints directly over `httpx` (async, mockable) instead of the sync `smartapi-python` SDK. Login/candle endpoints, field names and the index tokens are from memory of the public docs and are **unverified against the live API** (no credentials here). Websocket live ticks are deferred.
@@ -42,7 +43,7 @@ It also ships an **interactive tour** in `frontend/lib/tours.ts`: add `data-tour
 - [x] 5. News providers, dedupe, ticker resolution, FinBERT, sentiment aggregates, page
 - [x] 5A. LLM layer: provider interface, router, cache, budget, guardrails, news enrichment
 - [x] 6. Fundamentals, risk, DCF, scorecard
-- [ ] 7. Model interface, statistical models, walk-forward, baselines
+- [x] 7. Model interface, statistical models, walk-forward, baselines
 - [ ] 8. ML models, SHAP, ablation, deep model, ensemble, Model Lab
 - [ ] 8A. Context packs, AI Analyst, model explainer, why-did-it-move, backtest reviewer
 - [ ] 9. Backtester with Indian cost model, bootstrap, UI

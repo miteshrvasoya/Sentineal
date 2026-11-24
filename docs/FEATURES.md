@@ -85,3 +85,17 @@ See the in-app Guide for the full walkthrough and the Phase 6 tour. Summary:
 - **Risk:** CAGR, volatility, Sharpe, Sortino, Calmar, drawdown (max, longest, current), historical and parametric VaR/CVaR at 95/99%, beta/alpha/correlation vs Nifty 50, Kelly (display only), rolling volatility/Sharpe/beta/correlation (causal), correlation matrix. Risk-free rate is an editable assumption (default 7%). Vanishing denominators (std below 1e-12) are reported as undefined.
 - **Scorecard:** six sub-scores (trend, momentum, volume/flow, volatility-as-stability, sentiment, valuation) from explicit rules voting +1/0/-1 with a reason; weights 25/20/15/10/15/15 renormalised over available parts; mild labels; no advice language (tested). Thresholds are rules of thumb, not validated.
 - **API:** `POST /fundamentals/{symbol}/refresh`, `/fundamentals/{symbol}?r=&g1=&g2=&years=`, `/risk/{symbol}`, `/risk/correlation`, `/scorecard/{symbol}`, `/watchlist/summary`.
+
+
+## Phase 7: statistical models and the evaluation harness (`app/models/`, `app/eval/`)
+
+See the in-app Guide for the full walkthrough and the Phase 7 tour. Summary:
+
+- **Interface:** `Model.fit(train)` / `predict(history, horizon) -> ModelView` (probabilities up/flat/down, quantiles 5-95, drivers, training window, version). Register in `models/registry.py`.
+- **Models:** ARIMA (AIC order search), ETS (damped trend), GARCH / GJR-GARCH / EGARCH (Student-t, volatility cone), Monte Carlo GBM and 5-day block bootstrap (fan chart, level-touch probabilities), 3-state Gaussian HMM (forward-filtered regimes, regime table). Baselines: base_rate (naive), buy_hold, ma_rule.
+- **Analysis tools:** day-of-week / month seasonality with step-down Welch tests and Bonferroni correction, Kruskal-Wallis omnibus, STL decomposition; Engle-Granger pairs scan with half-life, hedge ratio, split-half stability and Bonferroni correction.
+- **Harness:** walk-forward (expanding or rolling) with refit schedule and non-overlapping outcomes; metrics: 3-class accuracy, up/down hit rate with binomial tests (vs 50% and vs naive), precision/recall, confusion matrix, Brier (multiclass and up-vs-not), calibration curve and ECE, MAE/RMSE/MASE, pinball loss, interval coverage, rank IC (overall and rolling), cumulative skill, rolling accuracy. Verdicts: `demonstrated edge` / `no demonstrated edge` / `insufficient sample` / `baseline`.
+- **Robustness:** GARCH-family forecasts use filtered historical simulation (bounded tails; free-running t-shocks made EGARCH explode); every forecast is sanity-checked (finite, |log return| <= 2) and failures are counted; a failing model is skipped with a warning; > 5% failed forecasts forbids the edge verdict.
+- **Registry and jobs:** every run saved as a new version (window, parameters, feature hash, metrics); background jobs with progress.
+- **API:** `GET /models`, `POST /models/{symbol}/run`, `GET /jobs/{id}`, `GET /analysis/{symbol}`, `GET /models/{symbol}/evaluation`, `GET /models/{symbol}/registry`, `GET /analysis/seasonality/{symbol}`, `GET /analysis/pairs/{symbol}`.
+- **Measured behaviour:** on 20 simulated no-signal series (5 models each) a "demonstrated edge" was declared for 1 of 20 series (5%); a strong planted next-day momentum is detected (skill 7-15%, p 1e-7 to 0.01) while the same momentum at a 5-day horizon is correctly not over-claimed (low power).

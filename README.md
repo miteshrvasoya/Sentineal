@@ -15,7 +15,7 @@ Copy `.env.example` to `.env` to add keys later. Without keys the app uses Yahoo
 Open **Guide** in the app's top bar (or read `docs/GUIDE.md`) for a plain-language walkthrough of every feature, written for engineers who are not traders. The **Tour** menu replays an interactive, spotlight-style tour of the real screens for every phase. Each new phase adds a guide section and a tour.
 
 ## Status
-Phases 1–6 done: data providers and fallback, Angel One, indicators, market structure and patterns, news and sentiment, the optional LLM layer, and fundamentals, risk and the signal scorecard. Later phases are tracked in `docs/PLAN.md`.
+Phases 1–7 done: data providers and fallback, Angel One, indicators, market structure and patterns, news and sentiment, the optional LLM layer, fundamentals, risk and the signal scorecard, and statistical forecast models with honest walk-forward evaluation. Later phases are tracked in `docs/PLAN.md`.
 
 ## Known limits (Phase 1)
 - NSE holiday table covers 2025 and 2026 only and must be refreshed yearly.

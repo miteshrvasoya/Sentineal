@@ -10,7 +10,8 @@ This table grows every phase. The newest row is on top.
 
 | Phase | Theme | One-line summary | Status |
 |---|---|---|---|
-| **6** | **Fundamentals, risk, scorecard** | Ratios and health scores, an editable DCF, risk metrics, and a transparent signal scorecard in the watchlist | **NEW** |
+| **7** | **Forecast models, tested honestly** | Eight statistical models plus baselines, judged out of sample with walk-forward tests, calibration and corrected significance | **NEW** |
+| 6 | Fundamentals, risk, scorecard | Ratios and health scores, an editable DCF, risk metrics, and a transparent signal scorecard in the watchlist | done |
 | 5A | LLM layer | Optional AI that classifies news (event type, importance, summary), gives a second sentiment opinion, with budgets and guardrails | done |
 | 5 | News and sentiment | Six news sources, dedupe, ticker tagging, FinBERT/VADER scoring, daily sentiment features | done |
 | 4 | Market structure | Swings, break of structure, gaps, order blocks, volume profile, pivots, candlestick patterns with edge tests | done |
@@ -18,7 +19,7 @@ This table grows every phase. The newest row is on top.
 | 2 | Data reliability | Angel One broker data, incremental backfill, data-quality report | done |
 | 1 | Foundations | Price API, candlestick page, provider fallback, NSE calendar | done |
 
-Coming next: forecasting models with honest evaluation (Phases 7 and 8), a backtester (9), a screener (10), and the AI analyst, chat agent and briefings (8A, 10A).
+Coming next: machine-learning models, ensembles and the Model Lab (Phase 8), the AI analyst (8A), a backtester (9), a screener and scheduler (10), and the chat agent and briefings (10A).
 
 ## Running it
 
@@ -26,7 +27,7 @@ Coming next: forecasting models with honest evaluation (Phases 7 and 8), a backt
 make install     # backend (uv) + frontend (npm)
 make dev         # backend :8000 (docs at /docs), frontend :3000
 make seed        # optional: 5y of daily prices + 90 days of news for the default stocks
-make test        # 219 backend tests, frontend type-check
+make test        # 290 backend tests, frontend type-check
 ```
 
 Copy `.env.example` to `.env` to add keys. **Everything works with zero keys**: Yahoo Finance for prices, Google News and GDELT for news, VADER for sentiment, and no LLM features. Each key you add lights up more.
@@ -45,7 +46,111 @@ Every phase has an **interactive tour** inside the app, so you can see what it a
 
 ---
 
-## Phase 6: fundamentals, risk and the scorecard (NEW)
+## Phase 7: forecast models, tested honestly (NEW)
+
+> **Tour:** open the **Tour** menu in the top bar and pick "Phase 7", or use the buttons at the top of this page. It walks through the real Models page.
+
+### What's new
+
+Eight statistical forecasting models, three baselines, and, more importantly, a **walk-forward test** that measures every model out of sample.
+
+The headline lesson of this phase is written into the software: **a forecast only counts if it beats a simple baseline on data it never saw, by more than luck can explain.** On most stocks, most models will not clear that bar, and the page says "no demonstrated edge" instead of flattering them.
+
+### Where to find it
+
+| In the app | What you see |
+|---|---|
+| Stock page, **Models** tab, *Run models* | Pick models, a horizon (1 day to 3 months), a walk-forward test on or off, and optional price levels. A progress bar follows the background job |
+| **Consensus panel** | Every model's vote side by side, how much they disagree, and how many have a demonstrated edge |
+| Model rows | Probability bar (up / flat / down), 90% range, hit rate vs a naive guess, skill vs baseline, and a verdict badge. Click a row for the model's inputs |
+| **Fan chart** | Monte Carlo price paths as bands, plus the chance of touching price levels you typed |
+| **Volatility cone** | GARCH forecast of volatility against the range volatility has historically covered |
+| **Market regime** | Hidden-Markov regime probabilities, a day-by-day regime strip, and a table of each regime's behaviour |
+| **Walk-forward leaderboard** | Brier score and skill, hit rate, adjusted p-value, calibration error, interval coverage, rank IC, with expandable calibration and cumulative-skill charts |
+| **Seasonality** and **Pairs** | Day-of-week and month effects with significance tests; cointegration scan of same-sector peers |
+| API | `GET /models`, `POST /models/{symbol}/run`, `GET /jobs/{id}`, `GET /analysis/{symbol}`, `GET /models/{symbol}/evaluation`, `GET /models/{symbol}/registry`, `GET /analysis/seasonality/{symbol}`, `GET /analysis/pairs/{symbol}` |
+
+### Try it
+
+1. Make sure the stock has at least ~300 daily bars (`make seed`, or just open its chart first).
+2. Open **Models**, leave the defaults (ARIMA, GARCH, Monte Carlo bootstrap, HMM regime) and click **Run models**. On the 500-bar demo data the default four models took about 8 seconds in full mode, all eight models about 32 seconds, and all eight in quick mode about 5 (more history means longer runs; I have not timed five full years). Tick **quick mode** for fewer simulations and refits.
+3. Read the **verdict badges**. Expect "no demonstrated edge" almost everywhere. That is the correct, honest result.
+4. In the leaderboard, open a model's row and look at **calibration** and the **cumulative skill** line.
+5. Type a price level a few percent away in "Price levels", run again, and read the touch probability on the fan chart.
+6. Change the horizon from 1 week to 1 day and compare how verdicts change (short horizons are the easiest place to find a real signal).
+
+### How it works under the hood
+
+**One interface for every model.** A model implements `fit(train)` and `predict(history, horizon)` and returns a `ModelView`: probabilities of up / flat / down, quantiles (5/25/50/75/95%) of the return, key drivers, training window and version. Adding a model is one file plus one line in the registry.
+
+**"Flat" is defined from volatility, not a fixed percentage.** A move counts as flat if it is smaller than 0.25 × the stock's recent daily volatility × √horizon. That keeps the three classes meaningful for both a calm utility and a wild small-cap, and it is computed only from data known at the time (no look-ahead).
+
+**The models**
+
+| Model | Idea |
+|---|---|
+| `arima` | Fits a small autoregressive model to daily returns (order chosen by AIC), simulates the horizon return |
+| `ets` | Damped-trend exponential smoothing on log price; residual noise sets the spread |
+| `garch`, `gjr_garch`, `egarch` | Volatility models; forecast how *wide* outcomes are and the volatility cone. Future paths are simulated by resampling the model's own past standardised shocks (*filtered historical simulation*), so tails come from the stock's real history |
+| `mc_gbm` | Monte Carlo with constant drift and volatility measured over the last year |
+| `mc_bootstrap` | Monte Carlo that resamples real historical returns in 5-day blocks (keeps fat tails) |
+| `hmm_regime` | 3-state hidden Markov model; regime probabilities and a regime-mixture forecast |
+| `base_rate`, `buy_hold`, `ma_rule` | The baselines: historical frequencies, always-up, and a moving-average trend rule |
+
+**Walk-forward validation** (`app/eval/walkforward.py`):
+
+1. Fit the model on data up to day *t* only (an *expanding* window of all past data, or a *rolling* ~3-year window).
+2. Forecast the next *h* days, then **wait for reality** and record what happened.
+3. Move forward and repeat. Every ~63 days the model is refitted.
+4. By default one forecast is scored every *h* days, so the outcomes being scored **never overlap**. Overlapping outcomes would make a few independent facts look like many.
+
+A dedicated test corrupts all prices after a chosen date and checks that **no forecast made before that date changes at all**, for four different models. That is the proof against look-ahead leakage.
+
+**The verdict.** The bar a model must clear is the naive base-rate baseline, using the **Brier score** (the average squared gap between the probabilities you gave and what happened; lower is better). A Diebold-Mariano test, with a Newey-West correction so overlapping data is handled correctly, asks whether the model's loss is really lower than the baseline's. The p-value is then multiplied by the number of models you tried (Bonferroni), because running ten models and keeping the best one finds luck. Only then may a model be labelled **demonstrated edge**; otherwise **no demonstrated edge**, or **insufficient sample** if there are fewer than 30 independent forecasts.
+
+**Safety nets.** Every forecast passes a sanity check: if a model returns something non-finite or absurd (for example a move of more than x7), that forecast is treated as a **failure** and never shown. A model that fails to run is skipped with a warning instead of sinking the job. Failed forecasts are counted and displayed, and a model with more than **5%** failed forecasts cannot earn the "demonstrated edge" label, because dropping your hardest forecasts would flatter you.
+
+**Registry and jobs.** Every run is saved with its data window, parameters, a hash of its inputs and its metrics, as a new version. Running is a background job with a progress bar, so the page stays responsive.
+
+### Ideas explained for an engineer
+
+- **Predictive distribution.** Instead of one number ("it will go up 2%"), the model gives a whole distribution ("up 45%, flat 20%, down 35%, and a 90% range of -6% to +6%"). Uncertainty is the product.
+- **Baseline.** The dumbest sensible forecast. Because markets are mostly noise, "the historical share of up days" is surprisingly hard to beat, so it is the right yardstick.
+- **Out-of-sample.** Judging a model on data it was not fitted on. In-sample accuracy is nearly worthless in finance: a flexible model can always memorise the past.
+- **Look-ahead bias.** Accidentally letting the future leak into a forecast. The most common way backtests lie, and why the harness is tested for it.
+- **Brier score and skill.** Brier is the mean squared error of probabilities. *Skill* is the percentage improvement over the baseline's Brier: +5% is better than naive, 0% is the same, negative is worse.
+- **Calibration.** Honest probabilities. If a model says "70%" a hundred times, about seventy should come true. A calibration curve plots promised against delivered.
+- **Rank IC (information coefficient).** The rank correlation between the forecast and the actual outcome. Even 0.05 to 0.10 would be notable in practice.
+- **Pinball loss and interval coverage.** Pinball scores quantile forecasts; coverage asks "did the 90% range really contain the outcome 90% of the time?" Too low means overconfident.
+- **MASE.** Mean error divided by the error of forecasting "no change". Below 1 beats "no change".
+- **Multiple testing.** Test enough things and something will look significant by luck. Bonferroni correction demands stronger evidence the more you test.
+- **GARCH and volatility clustering.** Big moves tend to follow big moves. That memory is real and forecastable, which is why volatility models work much better than direction models.
+- **Monte Carlo.** Simulate thousands of possible futures from assumptions and look at the spread. The fan chart is exactly that.
+- **Hidden Markov model and regimes.** A model with hidden states that switch (calm, choppy, stormy), each with its own behaviour. You never observe the state, only returns, and infer it.
+- **Cointegration.** Two prices can each wander yet stay tied together, so their gap keeps reverting. Pairs analysis looks for such ties and tests whether they are stable.
+- **Seasonality.** Calendar effects (Mondays, March). Easy to find by luck, so every table is corrected for the number of groups.
+
+### What we measured about the tooling itself
+
+- **A bug the real-looking run exposed.** On the demo data EGARCH showed a MASE of 120, an impossible number. Free-running simulated shocks made its log-variance recursion explode at a few origins (infinite quantiles). The fix was filtered historical simulation plus the sanity check above; a regression test now guards it. On that synthetic series EGARCH still fails at a couple of origins (its fitted parameters are unstable where volatility barely clusters), and the page reports those failures instead of hiding them.
+- **False-alarm rate.** On 20 simulated stocks with no predictability, 5 models each, the evaluation declared a "demonstrated edge" for **1 of 20 series (5%)**, in line with the intended ≤5% ceiling. Twenty series is a small sample, so treat this as reassuring, not proof.
+- **A real but faint signal is not over-claimed.** With strong planted day-to-day momentum (lag-1 autocorrelation about 0.5), the 5-day forecast still gets only about +2% Brier skill and p ≈ 0.16 with 120 independent forecasts, and p ≈ 0.12 with 340: **not** declared an edge. Predicting a weekly direction is genuinely hard and needs a lot of data to confirm.
+- **A strong signal is found.** The same momentum at a 1-day horizon is detected clearly (skill 7 to 15%, p from 1e-7 to 0.01).
+- **Interval honesty.** On noise, the 90% ranges contained the outcome 88 to 95% of the time.
+
+### How far to trust it
+
+- **Real data hasn't been used.** Everything was built and verified on synthetic series (and the usual real-data caveats from earlier phases apply). On real stocks expect "no demonstrated edge" for nearly all models; seeing it elsewhere would deserve suspicion.
+- **A past edge can vanish.** Markets change. Re-run regularly and watch the cumulative-skill and rolling-accuracy lines for decay. Scheduled retraining arrives in Phase 10.
+- **Price-only inputs.** These models see only daily closes. Volume, news and fundamentals enter the machine-learning models in Phase 8.
+- **Limits of the maths.** The Diebold-Mariano test is asymptotic, so a handful of forecasts gives unreliable p-values (hence the minimum of 30). GARCH and ARIMA assume the past process continues. The HMM can settle into odd states on short histories. Monte Carlo has no view beyond recent behaviour.
+- **Walk-forward needs history.** About 300 daily bars for a forecast and roughly 250 + 31 × horizon bars for a test: about 400 bars for a 1-day horizon, 405 for 5 days, but about 900 (3.6 years) for a 1-month horizon. On 500 bars a monthly test is refused with a message saying exactly how many bars are needed, rather than giving unreliable numbers. The 5-year `make seed` history is enough for every horizon up to about 3 months.
+- **Some models are fragile on some stocks.** EGARCH in particular can be unstable when volatility does not cluster much. Failures are counted and shown; do not rely on a model whose failure count is non-zero without looking at why.
+- **Not built yet:** machine-learning models, SHAP, the sentiment ablation, an LSTM, ensembles and the full Model Lab (Phase 8); AI explanations of results (Phase 8A); trading-cost-aware backtests (Phase 9).
+
+---
+
+## Phase 6: fundamentals, risk and the scorecard
 
 > **Tour:** open the **Tour** menu in the top bar and pick "Phase 6", or use the buttons at the top of this page. It walks through the real screens in about two minutes.
 

@@ -71,6 +71,14 @@ export const api = {
   risk: (symbol: string, rf: number) => get<Risk>(`/risk/${encodeURIComponent(symbol)}?rf=${rf}`),
   correlation: () => get<Corr>("/risk/correlation"),
   watchSummary: () => get<WatchRow[]>("/watchlist/summary"),
+  modelCatalog: () => get<{ models: ModelInfo[]; horizons: number[]; note: string }>("/models"),
+  runModels: (symbol: string, body: { models: string[]; horizon: number; evaluate: boolean; mode: string; fast: boolean; levels: number[] }) =>
+    postJson<Job>(`/models/${encodeURIComponent(symbol)}/run`, body),
+  job: (id: string) => get<Job>(`/jobs/${id}`),
+  analysis: (symbol: string, horizon: number) => get<AnalysisResp>(`/analysis/${encodeURIComponent(symbol)}?horizon=${horizon}`),
+  evaluation: (symbol: string, horizon: number) => get<EvalResp>(`/models/${encodeURIComponent(symbol)}/evaluation?horizon=${horizon}`),
+  seasonality: (symbol: string) => get<Seasonality>(`/analysis/seasonality/${encodeURIComponent(symbol)}`),
+  pairs: (symbol: string) => get<Pairs>(`/analysis/pairs/${encodeURIComponent(symbol)}`),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -181,3 +189,70 @@ export type Risk = {
 };
 export type Corr = { symbols: string[]; matrix: (number | null)[][]; days: number };
 export type WatchRow = { symbol: string; last: number | null; change_pct: number | null; spark: number[]; score: number | null; label: string | null };
+
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  let res: Response;
+  try { res = await fetch(`${API}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); }
+  catch { throw new ApiError(0, `Cannot reach the QuantLens backend at ${API}.`); }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { const j = await res.json(); detail = typeof j.detail === "string" ? j.detail : j.error ?? detail; } catch { /* ignore */ }
+    throw new ApiError(res.status, String(detail));
+  }
+  return res.json() as Promise<T>;
+}
+
+export type ModelInfo = { name: string; kind: string; description: string; experimental: boolean; baseline: boolean };
+export type Job = {
+  id: string; kind: string; symbol: string; status: "queued" | "running" | "done" | "failed"; progress: number; duration_s: number | null;
+  error: string | null; result: null | { evaluated: boolean; warnings: string[]; elapsed_s: number; models: string[];
+    walk_forward: null | { mode: string; forecasts: number; min_train: number; refit_every: number; stride: number } };
+};
+export type FanData = { days: number[]; last: number; fan: Record<"p5" | "p25" | "p50" | "p75" | "p95", number[]>;
+  touch: Record<string, { level: number; direction: "above" | "below"; probability: number }> };
+export type VolCone = { horizons: number[]; forecast: number[]; hist_min: number[]; hist_p25: number[]; hist_p50: number[]; hist_p75: number[]; hist_max: number[]; current: number[] };
+export type RegimeRow = { regime: string; mean_return_annual: number; volatility_annual: number; share_of_days: number; expected_duration_days: number; stay_probability: number };
+export type ModelViewT = {
+  name: string; horizon: number; p_up: number; p_flat: number; p_down: number; quantiles: Record<string, number>; flat_band: number; asof: string;
+  version: string; kind: string; vote: "up" | "flat" | "down"; conviction: number; drivers: { name: string; value: string | number }[]; notes: string[];
+  training_window: { start: string; end: string; n: number };
+  extras: { fan?: FanData; vol_cone?: VolCone; vol_forecast_annualised?: number; regime_probs?: Record<string, number>; current_regime?: string;
+    regime_table?: RegimeRow[]; timeline?: { dates: string[]; regime: number[]; prob: number[]; labels: string[] } };
+};
+export type ConsensusRow = { name: string; kind: string; vote: string; p_up: number; p_flat: number; p_down: number; conviction: number; net: number;
+  verdict: string | null; verdict_reason: string | null; hit_rate: number | null; naive_rate: number | null; brier_skill: number | null;
+  n_effective: number | null; edge: boolean; median_return: number | null };
+export type Consensus = { models: ConsensusRow[]; baselines: ConsensusRow[]; votes: Record<string, number>; n_models: number; n_edge: number;
+  majority: string | null; majority_share: number | null; spread: number | null; disagreement: "low" | "medium" | "high" | null;
+  conviction: "low" | "moderate" | null; headline: string; how_to_read?: string };
+export type AnalysisResp = { symbol: string; horizon: number; asof: string; consensus: Consensus; views: Record<string, ModelViewT>;
+  scorecard: Scorecard | null; versions: Record<string, number>; trained_at: number };
+export type EvalDetail = {
+  n_forecasts: number; n_effective: number; failures?: number; failure_rate?: number; verdict: string; verdict_reason: string; brier: number; brier_skill?: number; dm_p?: number; p_adjusted?: number;
+  directional: { n: number; hits?: number; hit_rate: number | null; naive_rate: number | null; p_vs_half: number | null; p_vs_naive: number | null };
+  confusion: { classes: string[]; matrix: number[][]; precision: Record<string, number | null>; recall: Record<string, number | null>; accuracy3: number };
+  calibration_up: { rows: { bin: string; mean_pred: number; observed: number; n: number }[]; ece: number | null };
+  pinball: { mean: number; coverage_90: number; coverage_50: number; coverage_note: string };
+  point: { mase: number | null; mae: number; mae_naive: number; note: string };
+  rank_ic: { ic: number | null; p: number | null; rolling: { date: string; ic: number | null }[] };
+  cum_skill?: { date: string; v: number }[]; rolling_accuracy: { date: string; v: number }[];
+};
+export type EvalResp = {
+  symbol: string; horizon: number; notes: string[]; period: { first: string; last: string; forecasts: number; mode: string; stride: number };
+  leaderboard: { model: string; baseline: boolean; verdict: string; brier: number; brier_skill: number | null; hit_rate: number | null; naive_rate: number | null;
+    p_vs_naive: number | null; accuracy3: number; ece: number | null; mase: number | null; pinball: number; coverage_90: number; rank_ic: number | null;
+    dm_p: number | null; p_adjusted: number | null; n_effective: number; version: number }[];
+  details: Record<string, EvalDetail>;
+};
+export type SeasonRow = { group: string; n: number; mean_pct: number | null; up_share: number | null; p: number | null; p_bonferroni: number | null; significant: boolean };
+export type Seasonality = {
+  n_returns: number; first: string; last: string; notes: string[];
+  day_of_week: { rows: SeasonRow[]; kruskal_p: number | null; any_significant: boolean };
+  month: { rows: SeasonRow[]; kruskal_p: number | null; any_significant: boolean };
+  stl: null | { period: number; seasonal_strength: number; trend_strength: number; reading: string };
+};
+export type PairRow = { peer: string; n: number; p?: number; p_bonferroni?: number; hedge_ratio?: number; half_life_days?: number | null; zscore_now?: number | null;
+  p_first_half?: number | null; p_second_half?: number | null; stable?: boolean; candidate?: boolean; skipped?: string };
+export type Pairs = { target: string; tested: number; peers: PairRow[]; best: string | null; notes: string[];
+  best_spread: null | { dates: string[]; spread: number[]; mean: number; std: number } };
