@@ -92,3 +92,42 @@ def test_structure_and_patterns_endpoints(client):
     assert client.get("/structure/tcs?interval=9d").status_code == 422
     assert client.get("/structure/NOPE").status_code == 404
     assert client.get("/patterns/NOPE").status_code == 404
+
+
+def test_news_and_sentiment_endpoints(client):
+    import time
+
+    from app.data.db import get_session
+    from app.data.news_ingest import NewsRouter
+    from app.data.prices import upsert_prices
+    from app.deps import get_news_router
+    from app.main import app
+    from app.nlp import factory
+    from app.nlp.vader import VaderScorer
+    from app.providers.base import RawArticle
+    from tests.conftest import make_frame
+    from tests.test_news_ingest import FakeNews
+
+    factory.set_scorer(VaderScorer())
+    now = int(time.time())
+    titles = ["Reliance Industries profit surges to record", "Reliance Industries faces probe, shares plunge",
+              "Reliance Industries announces new plant"]
+    arts = [RawArticle(url=f"https://n.com/{i}", title=f"{titles[i % 3]} #{i}", published=now - i * 86400 // 2, provider="fake")
+            for i in range(60)]
+    app.dependency_overrides[get_news_router] = lambda: NewsRouter([FakeNews("fake", arts)])
+    upsert_prices(next(get_session()), "RELIANCE", "1d", make_frame(120), "fake")
+
+    assert client.get("/news/RELIANCE").json()["count"] == 0
+    assert client.get("/sentiment/RELIANCE").status_code == 404
+    r = client.post("/news/RELIANCE/refresh?days=30").json()
+    assert r["new"] == 60 and r["scored"] == 60 and r["model"] == "vader"
+    n = client.get("/news/RELIANCE?days=60&limit=5").json()
+    assert n["count"] == 5 and n["model"] == "vader" and n["articles"][0]["label"] in ("positive", "negative", "neutral")
+    assert "RELIANCE" in n["articles"][0]["tickers"]
+    s = client.get("/sentiment/RELIANCE?days=60").json()
+    assert s["n_articles"] > 30 and s["daily"] and len(s["lead_lag"]) == 11 and s["top_terms"]
+    assert any("VADER" in x for x in s["notes"]) and {"mean_sent", "volume_z", "recency_weighted"} <= set(s["daily"][-1])
+    m = client.get("/sentiment/market?days=60").json()
+    assert m["model"] == "vader" and m["series"]
+    app.dependency_overrides.pop(get_news_router, None)
+    factory.set_scorer(None)

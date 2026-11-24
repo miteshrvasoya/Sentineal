@@ -32,7 +32,7 @@ Later phases add: articles, article_scores, features, model_registry, jobs, back
 - [x] 2. Angel One provider, instrument master, backfill, data-quality report
 - [x] 3. Indicator/feature library + tests, overlay UI
 - [x] 4. Market structure, volume profile, Fibonacci, pivots, S/R, patterns with edge stats
-- [ ] 5. News providers, dedupe, ticker resolution, FinBERT, sentiment aggregates, page
+- [x] 5. News providers, dedupe, ticker resolution, FinBERT, sentiment aggregates, page
 - [ ] 5A. LLM layer: provider interface, router, cache, budget, guardrails, news enrichment
 - [ ] 6. Fundamentals, risk, DCF, scorecard
 - [ ] 7. Model interface, statistical models, walk-forward, baselines

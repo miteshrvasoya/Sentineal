@@ -56,6 +56,10 @@ export const api = {
     get<Structure>(`/structure/${encodeURIComponent(symbol)}?interval=${interval}&adjusted=${adjusted}&k=${k}`),
   patterns: (symbol: string, interval: string, adjusted: boolean) =>
     get<Patterns>(`/patterns/${encodeURIComponent(symbol)}?interval=${interval}&adjusted=${adjusted}`),
+  news: (symbol: string, days: number) => get<NewsResponse>(`/news/${encodeURIComponent(symbol)}?days=${days}&limit=200`),
+  sentiment: (symbol: string, days: number) => get<SentimentResponse>(`/sentiment/${encodeURIComponent(symbol)}?days=${days}`),
+  marketSentiment: (days: number) => get<MarketSentiment>(`/sentiment/market?days=${days}`),
+  refreshNews: (symbol: string, days: number) => post<RefreshResult>(`/news/${encodeURIComponent(symbol)}/refresh?days=${days}`),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -81,3 +85,29 @@ export type PatternStat = {
     avg_dir_return_pct?: number; p_value?: number; p_value_bonferroni?: number; verdict?: string }>;
 };
 export type Patterns = { symbol: string; bars: number; recent: { t: number; pattern: string; direction: string }[]; stats: PatternStat[]; notes: string[] };
+
+export type Article = {
+  id: string; title: string; url: string; source: string; provider: string; published: number; summary: string;
+  tickers: string[]; score: number; label: "positive" | "negative" | "neutral"; pos: number; neg: number; neu: number;
+  provider_score: number | null;
+};
+export type NewsResponse = { symbol: string; model: string | null; count: number; articles: Article[]; note?: string };
+export type SentDay = {
+  date: string; mean_sent: number | null; sent_std: number | null; n_articles: number; volume_z: number | null;
+  volume_spike: number; pos_ratio: number | null; recency_weighted: number | null; sent_mom: number | null; divergence?: number;
+};
+export type LeadLag = { lag: number; n: number; corr: number | null; p: number | null; p_bonferroni: number | null };
+export type SentimentResponse = {
+  symbol: string; days: number; model: string; n_articles: number; latest: SentDay | null; daily: SentDay[];
+  lead_lag: LeadLag[]; spikes: SentDay[]; top_terms: [string, number][]; notes: string[];
+};
+export type MarketSentiment = { model: string | null; latest: number | null; n_articles?: number; series: { date: string; value: number }[]; note?: string };
+export type RefreshResult = { symbol: string; fetched: number; new: number; duplicates: number; scored: number; model: string; errors: Record<string, string> };
+
+async function post<T>(path: string): Promise<T> {
+  let res: Response;
+  try { res = await fetch(`${API}${path}`, { method: "POST" }); }
+  catch { throw new ApiError(0, `Cannot reach the QuantLens backend at ${API}.`); }
+  if (!res.ok) throw new ApiError(res.status, res.statusText);
+  return res.json() as Promise<T>;
+}

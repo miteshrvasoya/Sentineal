@@ -44,3 +44,22 @@ Not yet implemented: GARCH vol, India VIX features, volume profile, delivery %, 
 | Wyckoff read | **Heuristic only**: range-bound + up/down volume ratio + position in range |
 
 **Candlestick patterns** (doji, hammer, shooting star, engulfing, morning/evening star, harami, three soldiers/crows, inside/outside bar) are detected causally. Edge statistics use the stock's own history: forward 1/5/10-day return after the signal bar, hit rate versus the stock's base rate (binomial test), a Bonferroni correction across all pattern/horizon tests, and "insufficient sample" under 30 occurrences. Most patterns will show "no demonstrated edge"; that is the honest expected result.
+
+
+## Phase 5: news and sentiment (`providers/*`, `data/news_ingest.py`, `nlp/*`, `features/sentiment.py`)
+
+**Sources.** Always on (no key): Google News RSS, GDELT. With a key: Finnhub, Marketaux (100/day budget counter), Alpha Vantage (25/day), NewsAPI (100/day). Every call goes through the shared rate limiter and retry/backoff; one failing source never blocks the others; keys never appear in errors. *The request/response shapes were written from the public docs and tested against hand-made fixtures, not live APIs.*
+
+**Dedupe.** Articles are keyed by the normalized URL (host lower-cased, `www.`, tracking params, fragment and trailing slash removed) and also matched by a normalized title hash, so the same story from another outlet merges and its tickers are unioned.
+
+**Ticker resolution.** `data/aliases.csv` (hand-curated). Company names match case-insensitively; aliases of three characters or fewer (TCS, ITC, SBI, L&T) must match in exact upper case; no sub-word matches. Provider tags and the queried symbol are added.
+
+**Scoring.** FinBERT (`ProsusAI/finbert`, local, optional extra `uv sync --extra nlp`, one-time download) with VADER as the offline fallback. Each article is scored at most once per model; a series always uses one model (the scales differ) and the UI says which. Signed score = P(positive) - P(negative).
+
+**Daily features per ticker.** Mean and std of score, article count, news-volume z-score (vs the prior 30 days; spread floored at sqrt(mean) so a flat baseline still flags spikes) and spike flag (z > 2), smoothed positive/negative ratio, recency-weighted score (24h half-life, 7-day window), sentiment momentum (EMA5 - EMA20), and a price/sentiment divergence flag. Market-wide sentiment index = mean score across all stored news.
+
+**Point-in-time.** Articles at or after the 15:30 IST close count on the next day. Windows only look backwards. A test proves that adding later news never changes earlier days.
+
+**Lead/lag.** corr(sentiment_t, return_{t+lag}) for lags -5..+5 with Bonferroni-corrected p-values and a 30-day minimum. Expect most stocks to show nothing significant; sentiment is often a reaction to price.
+
+Not yet built: earnings-date proximity (needs a results calendar, Phase 6) and social sentiment (optional, skipped).

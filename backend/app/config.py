@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     angel_pin: str = Field(default="", repr=False)
     angel_totp_secret: str = Field(default="", repr=False)
 
+    finnhub_key: str = Field(default="", repr=False)
+    marketaux_key: str = Field(default="", repr=False)
+    alphavantage_key: str = Field(default="", repr=False)
+    newsapi_key: str = Field(default="", repr=False)
+
     @property
     def watchlist(self) -> list[str]:
         return [s.strip().upper() for s in self.default_watchlist.split(",") if s.strip()]

@@ -19,7 +19,12 @@ dependencies = [
   "pyotp>=2.12.1",
   "scipy>=1.17.1",
   "scikit-learn>=1.9.1",
+  "vadersentiment>=3.3.2",
 ]
+
+[project.optional-dependencies]
+# Local FinBERT (large download: torch). Without it the app falls back to VADER.
+nlp = ["transformers>=4.40", "torch>=2.2"]
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10"]

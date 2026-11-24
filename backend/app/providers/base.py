@@ -112,8 +112,55 @@ class MarketDataProvider(abc.ABC):
         raise ProviderError(f"{self.name} has no quote support")
 
 
-class NewsProvider(abc.ABC):  # filled in Phase 5
+@dataclass
+class NewsQuery:
+    symbol: str
+    company: str
+    days: int = 7
+
+
+@dataclass
+class RawArticle:
+    url: str
+    title: str
+    published: int                       # UTC epoch seconds
+    provider: str
+    summary: str = ""
+    source: str = ""
+    provider_score: float | None = None  # the provider's own sentiment, if it gives one
+    tickers: list[str] = field(default_factory=list)  # provider-tagged symbols (bare NSE symbols)
+
+
+class NewsProvider(abc.ABC):
+    """Fetch recent articles for one symbol/company. Keys never appear in logs or error messages."""
     name: str = "base"
+    rate_limit: tuple[int, float] = (30, 60.0)
+    daily_budget: int | None = None      # None = unlimited
+    key_env: str | None = None
+
+    def __init__(self, client=None, key: str | None = None) -> None:  # type: ignore[no-untyped-def]
+        import httpx  # noqa: PLC0415
+        self.client = client or httpx.AsyncClient(timeout=30, follow_redirects=True)
+        self.key = key
+        self.limiter = RateLimiter(*self.rate_limit)
+
+    def is_configured(self) -> bool:
+        return self.key_env is None or bool(self.key)
+
+    async def _get(self, url: str, params: dict) -> httpx.Response:  # type: ignore[name-defined]  # noqa: F821
+        import httpx  # noqa: PLC0415
+        try:
+            r = await self.client.get(url, params=params)
+        except httpx.HTTPError as e:   # str(e) can contain the URL, which contains the API key
+            raise ProviderError(f"{self.name} network error: {type(e).__name__}") from None
+        if r.status_code in (403, 429):
+            raise RateLimitedError(f"{self.name} rate limited/denied (HTTP {r.status_code})")
+        if r.status_code >= 400:
+            raise ProviderError(f"{self.name} HTTP {r.status_code}")
+        return r
+
+    @abc.abstractmethod
+    async def fetch(self, q: NewsQuery) -> list[RawArticle]: ...
 
 
 class FundamentalsProvider(abc.ABC):  # filled in Phase 6

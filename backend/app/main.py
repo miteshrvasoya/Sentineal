@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import router
+from app.api.routes_news import router as news_router
 from app.config import get_settings
 from app.data import db
 
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
         return JSONResponse({"error": "validation_error", "detail": str(exc.errors())}, status_code=422)
 
     app.include_router(router)
+    app.include_router(news_router)
     return app
 
 
