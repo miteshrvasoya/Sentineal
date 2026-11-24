@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import CandleChart from "@/components/CandleChart";
+import SymbolTabs from "@/components/SymbolTabs";
 import { api } from "@/lib/api";
 import { DEFAULT_LAYOUT, OVERLAYS, PANES, type Layout } from "@/lib/overlays";
 
@@ -73,6 +74,7 @@ function SymbolView() {
         </div>
       </div>
 
+      <SymbolTabs />
       {prices.isLoading && <div className="skeleton h-[520px] w-full" />}
       {prices.error && (
         <div role="alert" className="rounded border border-red-400 bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">

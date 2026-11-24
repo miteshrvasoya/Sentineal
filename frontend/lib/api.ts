@@ -52,8 +52,32 @@ export const api = {
   quality: (symbol: string, interval = "1d") => get<Quality>(`/data-quality/${encodeURIComponent(symbol)}?interval=${interval}`),
   indicators: (symbol: string, interval: string, adjusted: boolean, sets: string[], limit: number) =>
     get<Indicators>(`/indicators/${encodeURIComponent(symbol)}?set=${sets.join(",")}&interval=${interval}&adjusted=${adjusted}&limit=${limit}`),
+  structure: (symbol: string, interval: string, adjusted: boolean, k: number) =>
+    get<Structure>(`/structure/${encodeURIComponent(symbol)}?interval=${interval}&adjusted=${adjusted}&k=${k}`),
+  patterns: (symbol: string, interval: string, adjusted: boolean) =>
+    get<Patterns>(`/patterns/${encodeURIComponent(symbol)}?interval=${interval}&adjusted=${adjusted}`),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
   }),
 };
+
+export type StructureEvent = { i_t: number; kind: "BOS" | "CHoCH" | "sweep_high" | "sweep_low"; dir: "bull" | "bear"; level: number };
+export type Zone = { i_t: number; formed_t: number; resolved_t: number | null; dir: "bull" | "bear"; low: number; high: number };
+export type Structure = {
+  symbol: string; interval: string; bars: number; trend: string; k: number;
+  swings: { t: number; confirmed_t: number; kind: "high" | "low"; price: number; label: string }[];
+  events: StructureEvent[]; order_blocks: (Zone & { event: string })[]; fvg: Zone[];
+  dealing_range: { high: number; low: number; equilibrium: number; position_pct: number; zone: string } | null;
+  fibonacci: { leg: string; start: number; end: number; retracements: Record<string, number>; extensions: Record<string, number> } | null;
+  pivots: Record<string, { period: string; classic: Record<string, number> }>;
+  sr_zones: { low: number; high: number; touches: number; type: string }[];
+  volume_profile: { window: number; poc: number; vah: number; val: number; hvn: number[]; lvn: number[]; bins: { low: number; high: number; volume: number }[] } | null;
+  wyckoff: { label: string; evidence: string[]; heuristic: boolean };
+};
+export type PatternStat = {
+  pattern: string; direction: "bull" | "bear" | "neutral"; occurrences: number;
+  horizons: Record<string, { n: number; avg_return_pct?: number; hit_rate?: number; baseline_hit_rate?: number;
+    avg_dir_return_pct?: number; p_value?: number; p_value_bonferroni?: number; verdict?: string }>;
+};
+export type Patterns = { symbol: string; bars: number; recent: { t: number; pattern: string; direction: string }[]; stats: PatternStat[]; notes: string[] };

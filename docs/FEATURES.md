@@ -23,3 +23,24 @@ Wilder smoothing (RSI, ATR, ADX) is seeded with the SMA of the first *n* values,
 | | RVOL, volume z-score (baseline excludes the current bar), up/down volume ratio | Unusual participation |
 
 Not yet implemented: GARCH vol, India VIX features, volume profile, delivery %, market structure (Phases 4+).
+
+## Phase 4: market structure, volume profile, patterns (`features/structure.py`, `features/patterns.py`)
+
+**Point-in-time rule.** A swing at bar *i* needs *k* bars on both sides, so it is only *known* at bar *i+k* (`confirmed`). Every event (BOS/CHoCH/sweep/FVG/order block) is produced bar-by-bar using swings confirmed up to that bar. `resolved` (FVG filled / OB invalidated) deliberately describes what happened *after* formation. `tests/test_structure.py` and `tests/test_patterns.py` prove prefix-invariance.
+
+| Concept | Definition used here |
+|---|---|
+| Swing high/low | `high[i] >` the k bars before and `>=` the k after (mirror for lows); consecutive same-kind swings are cleaned to the more extreme |
+| HH/HL/LH/LL, trend | Compared with the previous swing of the same kind. Uptrend = HH+HL, downtrend = LH+LL, else range |
+| BOS / CHoCH | Close beyond the last unbroken swing. With the trend = BOS, against it = CHoCH |
+| Liquidity sweep | Wick beyond an unbroken swing, close back inside (once per swing) |
+| FVG | Bullish: `low[i] > high[i-2]` (bearish mirror), gap >= 0.1 ATR. Resolved when price fully trades back through |
+| Order block | Last opposite-colour candle (within 5 bars of the leg origin) before the leg that broke structure. Resolved by a close through the far side |
+| Dealing range | Latest confirmed swing high/low. Premium/discount around the 50% equilibrium; "above/below range" when price is outside |
+| Fibonacci | 0.236/0.382/0.5/0.618/0.786 retracements, 1.272/1.618 extensions of the latest confirmed leg |
+| Pivots | Classic, Fibonacci, Camarilla from the last completed day (intraday), week and month |
+| S/R zones | Complete-linkage clustering of the last 40 swing prices, zone width <= 1 ATR (DBSCAN chained swings into one giant zone, so it was replaced). Touches = cluster size |
+| Volume profile | Each bar's volume spread uniformly across its high-low range into 48 bins over the window. POC = peak bin, value area = 70% around the POC, HVN/LVN = smoothed peaks/troughs |
+| Wyckoff read | **Heuristic only**: range-bound + up/down volume ratio + position in range |
+
+**Candlestick patterns** (doji, hammer, shooting star, engulfing, morning/evening star, harami, three soldiers/crows, inside/outside bar) are detected causally. Edge statistics use the stock's own history: forward 1/5/10-day return after the signal bar, hit rate versus the stock's base rate (binomial test), a Bonferroni correction across all pattern/horizon tests, and "insufficient sample" under 30 occurrences. Most patterns will show "no demonstrated edge"; that is the honest expected result.

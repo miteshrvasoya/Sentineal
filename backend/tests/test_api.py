@@ -76,3 +76,19 @@ def test_indicators_endpoint(client):
     assert client.get("/indicators/tcs?set=nope").status_code == 422
     assert client.get("/indicators/tcs?params=%7Bbad").status_code == 422
     assert client.get("/indicators/ZZZ").status_code == 404
+
+
+def test_structure_and_patterns_endpoints(client):
+    from app.data.db import get_session
+    from app.data.prices import upsert_prices
+    from tests.conftest import make_frame
+    upsert_prices(next(get_session()), "TCS", "1d", make_frame(400), "fake")
+    s = client.get("/structure/tcs?limit=300").json()
+    for key in ("swings", "events", "fvg", "order_blocks", "sr_zones", "pivots", "volume_profile", "fibonacci", "wyckoff", "trend"):
+        assert key in s
+    assert all(sw["confirmed_t"] >= sw["t"] for sw in s["swings"])
+    p = client.get("/patterns/tcs").json()
+    assert len(p["stats"]) == 13 and p["notes"] and isinstance(p["recent"], list)
+    assert client.get("/structure/tcs?interval=9d").status_code == 422
+    assert client.get("/structure/NOPE").status_code == 404
+    assert client.get("/patterns/NOPE").status_code == 404

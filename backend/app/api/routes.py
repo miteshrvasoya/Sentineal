@@ -19,7 +19,10 @@ from app.data.models import ProviderHealth, WatchlistItem
 from app.data.prices import apply_adjustment, ensure_prices, load_prices
 from app.data.quality import quality_report
 from app.deps import get_router
+from app.features.patterns import detect as pattern_detect
+from app.features.patterns import edge_stats, recent_signals
 from app.features.pipeline import FEATURE_VERSION, SETS, compute_features, feature_hash, to_frame
+from app.features.structure import analyze as structure_analyze
 from app.providers.base import INTERVALS, ProviderError, ProviderRouter
 
 router = APIRouter()
@@ -225,3 +228,42 @@ def indicators(
             "t": [int(x.timestamp()) for x in feats.index],
             "latest": {c: (None if last[c] != last[c] else round(float(last[c]), 6)) for c in feats.columns},
             "series": cols}
+
+
+def _frame(db: Session, sym: str, interval: str, adjusted: bool, limit: int) -> pd.DataFrame:
+    if interval not in INTERVALS:
+        raise HTTPException(422, f"interval must be one of {list(INTERVALS)}")
+    prices = load_prices(db, sym, interval)
+    if prices.empty:
+        raise HTTPException(404, f"no stored prices for {sym}; fetch /prices/{sym} first")
+    if adjusted:
+        prices = apply_adjustment(prices)
+    return to_frame(prices).iloc[-limit:]
+
+
+@router.get("/structure/{symbol}")
+def structure(symbol: str, interval: str = "1d", k: int = Query(3, ge=1, le=10),
+              limit: int = Query(750, ge=60, le=MAX_BARS), profile_window: int = Query(120, ge=20, le=1000),
+              adjusted: bool = True, db: Session = Depends(get_session)) -> dict:
+    """Swings, BOS/CHoCH, sweeps, FVG, order blocks, S/R zones, Fibonacci, pivots, volume profile.
+    Swings are confirmed k bars late; see `confirmed_t`. Heuristics, not predictions."""
+    sym = _known(symbol)
+    df = _frame(db, sym, interval, adjusted, limit)
+    if len(df) < 2 * k + 10:
+        raise HTTPException(422, f"need at least {2 * k + 10} bars, have {len(df)}")
+    return {"symbol": sym, "interval": interval, "bars": len(df), **structure_analyze(df, k, profile_window)}
+
+
+@router.get("/patterns/{symbol}")
+def patterns(symbol: str, interval: str = "1d", limit: int = Query(5000, ge=60, le=MAX_BARS),
+             recent_bars: int = Query(30, ge=1, le=500), adjusted: bool = True,
+             db: Session = Depends(get_session)) -> dict:
+    """Candlestick patterns: recent detections plus per-pattern historical edge on this stock."""
+    sym = _known(symbol)
+    df = _frame(db, sym, interval, adjusted, limit)
+    flags = pattern_detect(df)
+    return {"symbol": sym, "interval": interval, "bars": len(df),
+            "recent": recent_signals(df, flags, recent_bars), "stats": edge_stats(df, flags),
+            "notes": ["Hit rate is compared with this stock's own base rate (binomial test).",
+                      "p_value_bonferroni corrects for testing all patterns and horizons at once.",
+                      "Fewer than 30 occurrences is reported as insufficient sample."]}

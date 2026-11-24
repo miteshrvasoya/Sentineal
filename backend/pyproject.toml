@@ -18,6 +18,7 @@ dependencies = [
   "tzdata",
   "pyotp>=2.12.1",
   "scipy>=1.17.1",
+  "scikit-learn>=1.9.1",
 ]
 
 [dependency-groups]
