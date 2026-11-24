@@ -10,8 +10,9 @@ This table grows every phase. The newest row is on top.
 
 | Phase | Theme | One-line summary | Status |
 |---|---|---|---|
-| **9** | **Backtester with Indian costs and a luck test** | Replay four classic trading rules with STT/stamp/GST/slippage, held-out data, a parameter-search penalty, a bootstrap and a random-timing test | **NEW** |
-| 8A | The AI analyst, with guardrails | Optional AI that explains computed facts, why a stock moved, a model's output and a backtest's trustworthiness, with citations and safety checks | **NEW** |
+| **10** | **Screener, breadth, scheduler, Learn** | Filter all stored stocks by rules, relative-strength ranks, market breadth, sector rotation, optional background jobs, database migrations and 12 lessons for engineers | **NEW** |
+| 9 | Backtester with Indian costs and a luck test | Replay four classic trading rules with STT/stamp/GST/slippage, held-out data, a parameter-search penalty, a bootstrap and a random-timing test | done |
+| 8A | The AI analyst, with guardrails | Optional AI that explains computed facts, why a stock moved, a model's output and a backtest's trustworthiness, with citations and safety checks | done |
 | 8 | Machine learning, ensembles, Model Lab | Gradient-boosted, forest, logistic and experimental deep models with SHAP explanations, a news ablation, a causal ensemble and a Model Lab, all held to the same walk-forward test | done |
 | 7 | Forecast models, tested honestly | Eight statistical models plus baselines, judged out of sample with walk-forward tests, calibration and corrected significance | done |
 | 6 | Fundamentals, risk, scorecard | Ratios and health scores, an editable DCF, risk metrics, and a transparent signal scorecard in the watchlist | done |
@@ -22,7 +23,7 @@ This table grows every phase. The newest row is on top.
 | 2 | Data reliability | Angel One broker data, incremental backfill, data-quality report | done |
 | 1 | Foundations | Price API, candlestick page, provider fallback, NSE calendar | done |
 
-Coming next: a screener and scheduler (10), and the chat agent and briefings (10A).
+Coming next: the chat agent and briefings (10A).
 
 ## Running it
 
@@ -49,7 +50,51 @@ Every phase has an **interactive tour** inside the app, so you can see what it a
 
 ---
 
-## Phase 9: the backtester (NEW)
+## Phase 10: screener, market breadth, scheduler and Learn (NEW)
+
+> **Tour:** open the **Tour** menu and pick "Phase 10". It visits the Screener, Market, Settings (scheduler) and Learn pages.
+
+### What's new
+
+- **Screener** (`/screener`): filter every stored stock by rules. Fields cover returns, relative-strength rank, RSI, ADX, distance from moving averages and the 52-week high, volatility, volume, the scorecard, news sentiment and fundamentals. Five starter ideas are included.
+- **Market** (`/market`): **breadth** (how many stocks are above their averages, advancing, near highs or lows) and **sector rotation** (returns and ranks by sector, and whether a sector is climbing or fading).
+- **Scheduler** (on the Data health page): background jobs for prices, news, AI enrichment and optional model retraining.
+- **Learn** (`/learn`): 12 short lessons for engineers.
+- **Alembic migrations** for the database schema (`make migrate`).
+
+### Try it
+
+1. Open **Screener**, click "Relative-strength leaders", then change a condition and re-run.
+2. Open **Market** and read the breadth gauges and the sector rotation column.
+3. Open **Data health & LLM**: the **Scheduler** card lists the jobs; click "Run now" on one.
+4. Open **Learn** and try the self-check questions.
+
+### How it works (engineering view)
+
+- **Snapshot table.** For each stock with at least 60 stored daily bars, the screener builds one row of metrics from stored data only (no network). It is cached for two minutes. Think of it as a materialised view over the price tables, filtered with a small typed expression language: `field op value`, validated before it runs.
+- **Missing data never matches.** A stock without a P/E cannot pass "P/E < 25". The results list how many stocks were missing each field, so an empty result is not mistaken for "nothing qualifies".
+- **Relative strength** is a percentile rank of the 3- or 6-month return within the stored universe: a cross-sectional rank, computed fresh each time, so it uses no future data.
+- **Breadth** is a set of shares computed over that universe. It describes participation; it does not forecast.
+- **Sector rotation** takes the median return per sector over 5, 21, 63 and 126 days, ranks sectors for each window, and reports the 6-month rank minus the 1-month rank. Sectors with one or two stored stocks are noisy.
+- **Scheduler** is a plain asyncio loop inside the backend (no extra service). Each job is either "once per trading day after 16:30 IST" or "every N minutes". It consults the NSE calendar, catches up if the backend was down at 16:30, retries a failed job after 30 minutes up to three times a day, never lets a job overlap itself, and records every run in the `scheduler_runs` table. A crash that leaves a 'running' row is ignored after two hours. It is off by default (`SCHEDULER_ENABLED=true` turns it on; `SCHEDULER_RETRAIN=true` enables the heavy retraining job).
+- **Migrations.** The app still creates tables on startup for local use. For a managed database use `make migrate` (Alembic). A test checks that the migrations produce exactly the schema the code expects, so a model change without a migration fails the test suite. For a database that already has the tables, run `uv run alembic stamp head` once.
+
+### Trading ideas explained
+
+- **Relative strength:** how a stock has done compared with its peers. A percentile rank is like a class rank: 90 means ahead of 90% of the class.
+- **Breadth:** the share of stocks taking part in a move. Narrow rallies (few stocks) are conventionally treated as less healthy than broad ones.
+- **Sector rotation:** money shifting between sectors over time, visible as changing ranks.
+- **Screening:** narrowing a universe by rules. It generates candidates, not conclusions.
+
+### How far to trust it
+
+- The universe is only the stocks stored in your database, so ranks and breadth describe that set, not the whole market. With ten stocks a "90th percentile" is just "the best one or two".
+- Screens say nothing about the future. The provided ideas are textbook setups, not tested ones; use the backtester before believing any of them.
+- Fundamentals come from a free provider and can be stale or missing; the screener never fills gaps.
+- The scheduler only runs while the backend runs, makes real network calls to providers, and the retraining job can take minutes per stock.
+- Scheduler and screener were tested with synthetic data and a simulated clock, not over a real trading week.
+
+## Phase 9: the backtester
 
 > **Tour:** open the **Tour** menu and pick "Phase 9". It walks through the new **Backtest** tab.
 
@@ -695,6 +740,8 @@ Yahoo Finance is an unofficial source that can break without notice, which is wh
 | Term | Meaning |
 |---|---|
 | **Adjusted price** | History rescaled for splits, bonuses and dividends so it is continuous |
+| **Breadth** | The share of stocks taking part in a market move (Phase 10) |
+| **Relative strength** | A stock's performance compared with its peers, often as a percentile rank (Phase 10) |
 | **Backtest** | Replaying a strategy on past data to see how it would have done (Phase 9) |
 | **Base rate** | How often something happens anyway (for example the share of up days). Any "edge" must beat it |
 | **Bear / bull** | Falling / rising market or view |

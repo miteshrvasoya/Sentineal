@@ -163,3 +163,15 @@ class JobRecord(Base):
     finished: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     result: Mapped[str] = mapped_column(Text, default="")
     error: Mapped[str] = mapped_column(Text, default="")
+
+
+class SchedulerRun(Base):
+    __tablename__ = "scheduler_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job: Mapped[str] = mapped_column(String(32), index=True)
+    trigger: Mapped[str] = mapped_column(String(12), default="schedule")      # schedule | manual
+    started: Mapped[int] = mapped_column(BigInteger, default=0)
+    finished: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    status: Mapped[str] = mapped_column(String(10), default="running")        # running | ok | failed
+    result: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str] = mapped_column(Text, default="")

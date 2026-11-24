@@ -12,6 +12,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <header className="flex flex-wrap items-center gap-4 border-b border-slate-200 px-4 py-2 dark:border-slate-800">
         <Link href="/" className="text-lg font-bold">Quant<span className="text-indigo-500">Lens</span></Link>
         <div data-tour="search"><SearchBox /></div>
+        <Link href="/screener" className="text-sm font-medium hover:underline">Screener</Link>
+        <Link href="/market" className="text-sm font-medium hover:underline">Market</Link>
+        <Link href="/learn" className="text-sm font-medium hover:underline">Learn</Link>
         <Link href="/guide" className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-300">Guide</Link>
         <Link href="/settings" className="text-sm text-slate-500 hover:underline">Data health &amp; LLM</Link>
         <div data-tour="market-bar"><MarketBar /></div>

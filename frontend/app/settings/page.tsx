@@ -1,5 +1,5 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, type LlmUsage } from "@/lib/api";
 
@@ -36,6 +36,28 @@ function UsageChart({ rows }: { rows: LlmUsage["rows"] }) {
   );
 }
 
+function Scheduler() {
+  const qc = useQueryClient();
+  const st = useQuery({ queryKey: ["sched"], queryFn: api.schedStatus, refetchInterval: 10_000 });
+  const run = useMutation({ mutationFn: (job: string) => api.schedRun(job), onSuccess: () => setTimeout(() => qc.invalidateQueries({ queryKey: ["sched"] }), 800) });
+  return (
+    <section data-tour="scheduler">
+      <h2 className="mb-2 text-xl font-semibold">Scheduler</h2>
+      {st.data && <p className={`mb-2 text-sm ${st.data.enabled ? "text-green-700 dark:text-green-400" : "text-amber-600"}`}>{st.data.enabled ? "On: jobs run automatically while the backend is running." : "Off. Set SCHEDULER_ENABLED=true in .env and restart to run jobs automatically. You can still run any job by hand below."}</p>}
+      <table className="w-full text-sm"><thead className="text-left text-slate-500"><tr><th>Job</th><th>When</th><th>Last run</th><th>Result</th><th></th></tr></thead>
+        <tbody>{st.data?.jobs.map((j) => (
+          <tr key={j.name} className="border-t border-slate-200 align-top dark:border-slate-800">
+            <td className="py-1"><div className="font-medium">{j.title}</div><div className="text-xs text-slate-500">{j.description}</div></td>
+            <td className="text-xs">{j.when}{j.enabled ? "" : " (switch on in .env)"}</td>
+            <td className="text-xs">{j.running ? "running…" : j.last_run ? ts(j.last_run.started) : "never"}</td>
+            <td className={`text-xs ${j.last_run?.status === "failed" ? "text-red-600" : ""}`} title={j.last_run?.error ?? JSON.stringify(j.last_run?.result ?? "")}>{j.last_run ? (j.last_run.status === "failed" ? `failed: ${j.last_run.error}` : `ok, ${j.last_run.duration_s ?? 0}s`) : ""}</td>
+            <td><button onClick={() => run.mutate(j.name)} disabled={j.running || run.isPending} className="rounded border border-slate-300 px-2 py-0.5 text-xs disabled:opacity-50 dark:border-slate-700">Run now</button></td></tr>))}</tbody></table>
+      {run.error && <p className="text-sm text-red-600" role="alert">{(run.error as Error).message}</p>}
+      <p className="mt-1 text-xs text-slate-500">{st.data?.note}</p>
+    </section>
+  );
+}
+
 export default function Settings() {
   const llm = useQuery({ queryKey: ["llmstatus"], queryFn: api.llmStatus, refetchInterval: 20_000 });
   const usage = useQuery({ queryKey: ["llmusage"], queryFn: api.llmUsage, refetchInterval: 20_000 });
@@ -45,6 +67,7 @@ export default function Settings() {
   const dq = useQuery({ queryKey: ["dq", go], queryFn: () => api.quality(go) });
   return (
     <div className="space-y-8">
+      <Scheduler />
       <section data-tour="providers">
         <h1 className="mb-2 text-xl font-semibold">Providers</h1>
         {prov.error && <p role="alert" className="text-sm text-red-500">{(prov.error as Error).message}</p>}

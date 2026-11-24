@@ -25,11 +25,27 @@ const MD = "/s/{symbol}/models";
 const LB = "/s/{symbol}/lab";
 const AN = "/s/{symbol}/analyst";
 const BT = "/s/{symbol}/backtest";
+const NOTE = "Appears after you run a screen.";
 
 
 export const TOURS: TourDef[] = [
   {
-    id: "phase-9", phase: "Phase 9", title: "The backtester, with Indian costs and a luck test", isNew: true,
+    id: "phase-10", phase: "Phase 10", title: "Screener, market breadth, scheduler and Learn", isNew: true,
+    blurb: "Find stocks by rules, see how broad the market is, keep data fresh automatically, and learn the ideas behind it all.",
+    steps: [
+      { title: "From one stock to the whole universe", body: "Phase 10 widens the view: a screener to filter all stored stocks, market breadth and sector rotation, a scheduler that keeps data fresh, and a Learn section that explains the ideas for engineers." },
+      { route: "/screener", target: "screen-presets", title: "Start from an idea", body: "Each button loads a named set of conditions, like 'oversold in an uptrend' or 'relative-strength leaders'. Hover one for the idea behind it. They are starting points to edit, not recommendations." },
+      { route: "/screener", target: "screen-builder", title: "Build your own screen", body: "Pick a field, an operator and a value; all conditions must be true. Fields cover momentum, trend, risk, volume, the scorecard, news sentiment and fundamentals. Percent fields take plain percentages.\n\nRelative-strength rank is a percentile within the stored universe: 90 means better than 90% of the stocks. A stock missing data for a condition never matches it, and the results say how many were missing." },
+      { route: "/screener", target: "screen-results", title: "Reading the results", body: "Click a stock to open it. A screen is a filter on today's numbers, not a forecast. Whether a filter ever picked winners is for the Backtest and Model Lab tabs to answer.", note: NOTE },
+      { route: "/market", target: "mkt-breadth", title: "Market breadth", body: "How many stocks are participating? An index can rise while most stocks fall. Breadth shows the share above their 50- and 200-day averages, up over 5 days and 1 month, and near 52-week highs or lows.\n\nIt covers only the stocks stored here, so with a short watchlist it is a rough guide." },
+      { route: "/market", target: "mkt-sectors", title: "Sector rotation", body: "Median returns by sector over four windows, with ranks. Rotation compares a sector's 6-month rank with its 1-month rank: green means it is climbing (money moving in), red means fading." },
+      { route: "/settings", target: "scheduler", title: "The scheduler", body: "Optional background jobs: refresh prices after the NSE close, fetch and score news, AI-enrich it, and (if switched on) retrain models. Each run is recorded, failures are retried a few times, and jobs never overlap.\n\nIt is off by default; set SCHEDULER_ENABLED=true in .env. You can run any job by hand with 'Run now'." },
+      { route: "/learn", target: "learn-page", title: "Learn", body: "Twelve short lessons on the ideas behind the app, written for engineers: returns, volatility, trend vs mean reversion, multiple testing, walk-forward validation, costs, drawdown and how to read the verdicts. Each has something to try and a question to check yourself." },
+      { title: "That is Phase 10", body: "The platform now has data, analysis, models, backtests, AI explanations, a screener and a scheduler. The remaining phase adds a chat agent, a natural-language screener, a daily briefing and red-flag detection." },
+    ],
+  },
+  {
+    id: "phase-9", phase: "Phase 9", title: "The backtester, with Indian costs and a luck test",
     blurb: "Replay a trading rule on history with real-world costs, then find out whether the result could just be luck.",
     steps: [
       { title: "Testing a rule against history, honestly", body: "A backtest replays a rule (for example 'buy when the fast average crosses above the slow one') on past prices and reports what it would have earned.\n\nIt is easy to make a backtest look great and mean nothing. This one charges Indian trading costs, never trades on a price it could not have known, keeps the most recent data hidden while choosing parameters, and tests whether the result could be luck." },

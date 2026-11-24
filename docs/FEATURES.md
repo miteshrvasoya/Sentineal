@@ -111,3 +111,7 @@ Endpoints: `POST /ai/analyst/{symbol}`, `POST /ai/explain-model/{symbol}`, `POST
 ## Phase 9: backtester (`app/backtest/`)
 
 `GET /backtest/strategies`, `POST /backtest/{symbol}`. Modules: `costs.py` (Indian delivery cost model), `strategies.py` (4 rules + parameter grids), `engine.py` (event loop), `stats.py` (metrics, stationary bootstrap, random-timing test), `service.py` (orchestration, held-out split, verdict, reviewer input). Frontend: `/s/{symbol}/backtest`.
+
+## Phase 10: screener, breadth, scheduler, migrations (`app/screener/`, `app/scheduler.py`, `backend/alembic/`)
+
+`GET /screener/fields`, `POST /screener/run`, `GET /market/breadth`, `GET /market/sectors`, `GET /scheduler/status`, `POST /scheduler/run/{job}`. Frontend: `/screener`, `/market`, `/learn`, scheduler card on `/settings`. Migrations: `make migrate`.

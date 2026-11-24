@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend test seed lint install tour-check
+.PHONY: dev backend frontend test seed lint install tour-check migrate
 install:
 	cd backend && uv sync
 	cd frontend && npm install --no-audit --no-fund
@@ -18,3 +18,6 @@ seed:
 
 tour-check:
 	cd frontend && node e2e/tour-check.cjs
+
+migrate:
+	cd backend && uv run alembic upgrade head

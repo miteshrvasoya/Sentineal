@@ -15,15 +15,26 @@ from app.api.routes_fund import router as fund_router
 from app.api.routes_llm import router as llm_router
 from app.api.routes_models import router as models_router
 from app.api.routes_news import router as news_router
+from app.api.routes_scheduler import router as scheduler_router
+from app.api.routes_screener import router as screener_router
 from app.config import get_settings
 from app.data import db
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    import asyncio
+
+    from app.deps import _session_ctx
+    from app.scheduler import Scheduler, default_jobs
     if db._engine is None:
         db.init_engine()
+    s = get_settings()
+    app.state.scheduler = Scheduler(_session_ctx, default_jobs(_session_ctx))
+    task = asyncio.create_task(app.state.scheduler.loop(s.scheduler_tick_seconds)) if s.scheduler_enabled else None
     yield
+    if task:
+        task.cancel()
 
 
 def create_app() -> FastAPI:
@@ -47,6 +58,8 @@ def create_app() -> FastAPI:
     app.include_router(fund_router)
     app.include_router(models_router)
     app.include_router(backtest_router)
+    app.include_router(screener_router)
+    app.include_router(scheduler_router)
     return app
 
 

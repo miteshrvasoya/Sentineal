@@ -87,6 +87,12 @@ export const api = {
   aiBacktestReview: (strategy: string, metrics: Record<string, unknown>) => postJson<BacktestReviewOut>("/ai/backtest-review", { strategy, metrics }),
   btStrategies: () => get<{ strategies: StrategyInfo[]; cost_presets: Record<string, Record<string, number>>; cost_note: string }>("/backtest/strategies"),
   backtest: (symbol: string, body: BtRequest) => postJson<BacktestOut>(`/backtest/${encodeURIComponent(symbol)}`, body),
+  screenFields: () => get<{ fields: ScreenField[]; ops: string[]; presets: ScreenPreset[] }>("/screener/fields"),
+  screenRun: (conditions: ScreenCond[], sort: string, desc: boolean) => postJson<ScreenResult>("/screener/run", { conditions, sort, desc, limit: 100 }),
+  breadth: () => get<Breadth>("/market/breadth"),
+  sectors: () => get<{ rows: SectorRow[]; note: string }>("/market/sectors"),
+  schedStatus: () => get<SchedStatus>("/scheduler/status"),
+  schedRun: (job: string) => post<{ started: string }>(`/scheduler/run/${encodeURIComponent(job)}`),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -313,3 +319,16 @@ export type BacktestOut = {
   reviewer_input: Record<string, unknown>; verdict: { label: string; reasons: string[]; beats_buy_hold: boolean; caveat: string }; notes: string[];
 };
 export type BtRequest = { strategy: string; params: Record<string, number>; cost_preset: string; capital: number; stop_loss: number | null; oos_fraction: number; optimize: boolean };
+
+export type ScreenField = { key: string; label: string; group: string; kind: "number" | "text" | "bool"; unit: string; desc: string };
+export type ScreenCond = { field: string; op: string; value: unknown };
+export type ScreenPreset = { id: string; title: string; idea: string; conditions: ScreenCond[] };
+export type ScreenRow = { symbol: string; sector: string; as_of: string; [k: string]: string | number | boolean | null };
+export type ScreenResult = { universe: number; matches: number; rows: ScreenRow[]; missing_data: Record<string, number>; disclaimer: string };
+export type Breadth = { n: number; above_sma50: number | null; above_sma200: number | null; positive_5d: number | null; positive_21d: number | null;
+  near_52w_high: number | null; near_52w_low: number | null; median_5d_return: number | null; reading: string };
+export type SectorRow = { sector: string; n: number; ret_5d: number | null; ret_21d: number | null; ret_63d: number | null; ret_126d: number | null;
+  rank_5d: number | null; rank_21d: number | null; rank_63d: number | null; rank_126d: number | null; rotation: number | null; rs_rank_126: number | null };
+export type SchedRun = { id: number; job: string; trigger: string; started: number; finished: number | null; duration_s: number | null; status: string; error: string | null; result: unknown };
+export type SchedJob = { name: string; title: string; description: string; schedule: string; when: string; enabled: boolean; running: boolean; due_now: boolean; last_run: SchedRun | null };
+export type SchedStatus = { enabled: boolean; tick_seconds: number; jobs: SchedJob[]; recent: SchedRun[]; note: string };

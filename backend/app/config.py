@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     llm_daily_usd_budget: float = 1.0
     llm_enable_forward_only_features: bool = True
 
+    # Background scheduler (off by default: it makes network calls and may use LLM budget).
+    scheduler_enabled: bool = False
+    scheduler_retrain: bool = False
+    scheduler_models: str = "lgbm,logit,arima,garch"
+    scheduler_tick_seconds: int = 60
+
     @property
     def watchlist(self) -> list[str]:
         return [s.strip().upper() for s in self.default_watchlist.split(",") if s.strip()]
