@@ -147,8 +147,11 @@ def frac_diff(series: pd.Series, d: float = 0.4, thresh: float = 1e-4) -> pd.Ser
     than a plain return. d = 0 returns the series, d = 1 is the ordinary first difference. Causal (weights apply to the past)."""
     w = [1.0]
     k = 1
-    while abs(w[-1]) > thresh and k < 500:
-        w.append(-w[-1] * (d - k + 1) / k)
+    while k < 500:
+        nxt = -w[-1] * (d - k + 1) / k
+        if abs(nxt) < thresh:                 # weights have decayed to nothing: stop (d = 1 gives exactly [1, -1])
+            break
+        w.append(nxt)
         k += 1
     w_arr = np.array(w[::-1])
     width = len(w_arr)
