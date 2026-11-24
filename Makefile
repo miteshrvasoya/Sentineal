@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend test seed lint install tour-check migrate
+.PHONY: dev backend frontend test seed lint install tour-check migrate db-up db-down db-reset db-psql db-import
 install:
 	cd backend && uv sync
 	cd frontend && npm install --no-audit --no-fund
@@ -21,3 +21,16 @@ tour-check:
 
 migrate:
 	cd backend && uv run alembic upgrade head
+
+# ---- database in Docker (only the database; backend and frontend run locally) ----
+db-up:
+	docker compose up -d --wait db
+	@echo "PostgreSQL is ready. Put this in .env:  DATABASE_URL=postgresql+psycopg://quantlens:quantlens@127.0.0.1:5432/quantlens"
+db-down:
+	docker compose stop db
+db-reset:
+	docker compose down -v
+db-psql:
+	docker compose exec db psql -U quantlens -d quantlens
+db-import:
+	cd backend && uv run python scripts/sqlite_to_postgres.py

@@ -1,21 +1,23 @@
-# Ports are bound to localhost only. Backend reads secrets from .env.
+# Docker runs ONLY the database. The backend and frontend run locally (make dev) and connect to it.
+#   make db-up      start PostgreSQL (data persists in the quantlens-pgdata volume)
+#   make db-down    stop it (data is kept)      make db-reset   stop it and DELETE the data
+# The port is bound to localhost only. The default password is for local development; override with POSTGRES_PASSWORD.
 services:
-  backend:
-    build: { context: ., dockerfile: backend/Dockerfile }
-    env_file: [{ path: .env, required: false }]
+  db:
+    image: postgres:16-alpine
+    container_name: quantlens-db
+    restart: unless-stopped
     environment:
-      DATABASE_URL: sqlite:////data/quantlens.db
-      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
-    volumes: ["./data:/data"]
-    ports: ["127.0.0.1:8000:8000"]
+      POSTGRES_USER: quantlens
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quantlens}
+      POSTGRES_DB: quantlens
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["quantlens-pgdata:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-  frontend:
-    build: { context: ., dockerfile: frontend/Dockerfile }
-    depends_on:
-      backend: { condition: service_healthy }
-    ports: ["127.0.0.1:3000:3000"]
+      test: ["CMD-SHELL", "pg_isready -U quantlens -d quantlens"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  quantlens-pgdata:

@@ -91,11 +91,11 @@ class _Deep(Model):
         return _windows(Z, pos[keep]).astype(np.float32), ds.y[keep], ds.ret[keep], mu, sd
 
     def fit(self, train: pd.DataFrame) -> _Deep:
-        import torch
-        import torch.nn as nn
         ok, why = torch_available()
         if not ok:
             raise ModelError(why)
+        import torch
+        import torch.nn as nn
         self._check(train)
         warnings.filterwarnings("ignore")
         torch.set_num_threads(2)

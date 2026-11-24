@@ -26,6 +26,8 @@ def init_engine(url: str | None = None) -> Engine:
         if ":memory:" in url:
             from sqlalchemy.pool import StaticPool
             kwargs["poolclass"] = StaticPool
+    if not url.startswith("sqlite"):
+        kwargs["pool_pre_ping"] = True              # survive a restarted database container
     _engine = create_engine(url, **kwargs)
     if url.startswith("sqlite"):
         @event.listens_for(_engine, "connect")
@@ -35,8 +37,27 @@ def init_engine(url: str | None = None) -> Engine:
             cur.close()
     _SessionLocal = sessionmaker(_engine, expire_on_commit=False)
     from app.data import models  # noqa: F401  (register tables)
-    Base.metadata.create_all(_engine)
+    if url.startswith("sqlite"):
+        Base.metadata.create_all(_engine)            # zero-setup local use and tests
+    else:
+        migrate(_engine)                             # a server database is managed by Alembic migrations
     return _engine
+
+
+def migrate(engine: Engine) -> None:
+    """Bring a server database (PostgreSQL) up to the latest schema. Safe to run on every start."""
+    from pathlib import Path
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    backend = Path(__file__).resolve().parents[2]
+    cfg = Config(str(backend / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend / "alembic"))
+    with engine.begin() as conn:
+        cfg.attributes["connection"] = conn
+        command.upgrade(cfg, "head")
 
 
 def get_session() -> Iterator[Session]:

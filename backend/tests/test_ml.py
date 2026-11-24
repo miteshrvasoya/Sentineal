@@ -310,6 +310,7 @@ def test_registry_availability_metadata():
 # ---------------- deep models ----------------
 
 def test_deep_models_fit_predict_and_are_deterministic(noise):
+    pytest.importorskip("torch", reason="deep models need `uv sync --extra deep`")
     d = noise.iloc[:700]
     a = reg.build("deep_gru", fast=True, seed=1, horizon=5).fit(d).predict(d, 5)
     b = reg.build("deep_gru", fast=True, seed=1, horizon=5).fit(d).predict(d, 5)
@@ -322,6 +323,7 @@ def test_deep_models_fit_predict_and_are_deterministic(noise):
 
 
 def test_pooled_deep_model_never_sees_other_stocks_future(noise):
+    pytest.importorskip("torch", reason="deep models need `uv sync --extra deep`")
     d = noise.iloc[:700]
     other = utc(prices(900, seed=11))
     cut = d.index[-1]

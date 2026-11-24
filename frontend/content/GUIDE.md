@@ -32,8 +32,20 @@ All planned phases are now built. Deferred extras are listed in docs/PLAN.md (Pl
 make install     # backend (uv) + frontend (npm)
 make dev         # backend :8000 (docs at /docs), frontend :3000
 make seed        # optional: 5y of daily prices + 90 days of news for the default stocks
-make test        # 290 backend tests, frontend type-check
+make test        # 400+ backend tests, frontend type-check
 ```
+
+**Database.** By default the app uses a local SQLite file and needs nothing else. To use PostgreSQL instead, run **only the database** in Docker; the backend and frontend keep running locally (so code changes reload instantly and nothing needs rebuilding):
+
+```bash
+cp .env.example .env     # DATABASE_URL already points at the Docker database
+make db-up               # starts PostgreSQL 16 in Docker (data persists in a volume)
+make dev                 # backend and frontend run locally and connect to it
+make db-import           # optional: copy an existing data/quantlens.db into PostgreSQL
+make db-down             # stop it (data kept);  make db-reset deletes the data
+```
+
+On start-up the backend applies the Alembic migrations to PostgreSQL automatically, so there is nothing to set up by hand.
 
 Copy `.env.example` to `.env` to add keys. **Everything works with zero keys**: Yahoo Finance for prices, Google News and GDELT for news, VADER for sentiment, and no LLM features. Each key you add lights up more.
 
