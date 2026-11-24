@@ -36,11 +36,13 @@ const SHOTS = process.env.TOUR_SHOTS;
       await page.waitForTimeout(1000);
       const s = await page.evaluate(() => {
         const o = document.querySelector("[data-testid=tour-overlay]"), d = document.querySelector("[role=dialog]");
+        if (!d) return { gone: true, path: location.pathname };
         const ring = o && o.querySelector(".ring-2"), r = ring && ring.getBoundingClientRect(), dr = d.getBoundingClientRect();
         return { title: d.querySelector("h2").textContent, counter: d.querySelector(".tabular-nums").textContent.trim(),
           spot: !!r && r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight, note: !!d.querySelector(".bg-amber-50"),
           inView: dr.left >= 0 && dr.right <= innerWidth && dr.top >= 0 && dr.bottom <= innerHeight + 2 };
       });
+      if (s.gone) { problems.push(`tour closed unexpectedly: ${titles[t]} before step ${n} (page ${s.path})`); break; }
       steps++;
       if (s.spot) spotlit++; else if (s.note) notes++; else cards++;
       if (!s.inView) problems.push(`card off-screen: ${titles[t]} / ${s.counter} / ${s.title}`);
