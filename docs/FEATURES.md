@@ -119,3 +119,7 @@ Endpoints: `POST /ai/analyst/{symbol}`, `POST /ai/explain-model/{symbol}`, `POST
 ## Phase 10A: chat agent, NL screener, briefing, red flags, safety evaluation (`app/agent/`, `app/llm/tasks/assistant.py`, `app/llm/eval_agent.py`)
 
 `POST /ai/chat`, `POST /ai/nl-screen`, `POST /ai/briefing`, `GET /ai/briefing/latest`, `GET /redflags/{symbol}`, `GET /redflags`, `GET /llm/eval/safety`. Frontend: `/chat`, `/briefing`, NL box on `/screener`, red flags on the AI analyst tab, safety panel on `/settings`. Prompts: `chat_agent`, `nl_screener`, `briefing` (v1). Corpora: `data/llm_eval/injections.jsonl`, `agent_questions.jsonl`.
+
+## Phase 11: beginner mode (`app/portfolio.py`, `app/ideas.py`, `app/search.py`, `app/llm/openrouter.py`)
+
+`GET/POST/DELETE /portfolio...` (transactions, summary, history, refresh), `GET /discover/ideas`, `GET /discover/stock/{symbol}`, `GET /discover/status`, `POST /discover/load`, `GET /symbols/search` (whole NSE list + live lookup), `GET /llm/openrouter/models`. Frontend: `/` (My investments), `/discover`, plain-English `/s/{symbol}` in Simple mode, `components/Term.tsx` jargon tooltips, `lib/mode.tsx`. Data: `data/nse_equities.csv`, `popular.csv`, `search_aliases.csv`. Scripts: `make openrouter-check`, `make refresh-symbols`. Migration 0002 adds `portfolio_txns`.

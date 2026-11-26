@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(default="", repr=False)
     openai_api_key: str = Field(default="", repr=False)
     groq_api_key: str = Field(default="", repr=False)
+    openrouter_api_key: str = Field(default="", repr=False)
+    openrouter_model: str = ""          # optional: put this model first in every OpenRouter chain
     ollama_base_url: str = ""
     llm_default_provider: str = ""
     llm_daily_token_budget: int = 200_000

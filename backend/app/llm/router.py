@@ -53,10 +53,15 @@ class LLMConfig(BaseModel):
     default_price: dict[str, float] = {"in": 3.0, "out": 15.0}
     pricing: dict[str, dict[str, float]] = {}
     tasks: dict[str, TaskCfg] = {}
+    openrouter_free_models: list[str] = []      # appended (in this order) to every task chain that lacks OpenRouter entries
 
 
 def load_config(path: Path = CONFIG_PATH) -> LLMConfig:
-    return LLMConfig.model_validate(yaml.safe_load(path.read_text()))
+    cfg = LLMConfig.model_validate(yaml.safe_load(path.read_text()))
+    for t in cfg.tasks.values():
+        if cfg.openrouter_free_models and not any(e.provider == "openrouter" for e in t.chain):
+            t.chain = t.chain + [ChainEntry(provider="openrouter", model=m) for m in cfg.openrouter_free_models]
+    return cfg
 
 
 def build_providers(cfg: LLMConfig, s: Settings | None = None) -> dict[str, LLMProvider]:
@@ -71,6 +76,8 @@ def build_providers(cfg: LLMConfig, s: Settings | None = None) -> dict[str, LLMP
         ollama += "/v1"
     return {
         "anthropic": AnthropicProvider(), "gemini": GeminiProvider(), "openai": OpenAIProvider(),
+        "openrouter": OpenAICompatProvider("openrouter", s.openrouter_api_key, cfg.providers.get("openrouter", {}).get("base_url", "https://openrouter.ai/api/v1"), True,
+                                           headers={"HTTP-Referer": "http://localhost:3000", "X-Title": "QuantLens"}),
         "groq": OpenAICompatProvider("groq", s.groq_api_key, cfg.providers.get("groq", {}).get("base_url"), True),
         "ollama": OpenAICompatProvider("ollama", "", ollama or None, False),
     }
@@ -184,6 +191,9 @@ class LLMRouter:
 def build_router(db_factory: Callable, s: Settings | None = None, cfg: LLMConfig | None = None) -> LLMRouter:  # type: ignore[type-arg]
     s = s or get_settings()
     cfg = cfg or load_config()
+    if s.openrouter_model:                     # the user's pick goes first in every task's OpenRouter chain
+        for t in cfg.tasks.values():
+            t.chain = [ChainEntry(provider="openrouter", model=s.openrouter_model)] + [e for e in t.chain if not (e.provider == "openrouter" and e.model == s.openrouter_model)]
     usage = UsageTracker(db_factory, s.llm_daily_token_budget, s.llm_daily_usd_budget, cfg.pricing, cfg.default_price)
     return LLMRouter(cfg, build_providers(cfg, s), usage, LLMResultCache(db_factory), s.llm_default_provider)
 

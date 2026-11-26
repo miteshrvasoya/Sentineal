@@ -9,6 +9,7 @@ providers:
   gemini:    { env: GEMINI_API_KEY }
   openai:    { env: OPENAI_API_KEY }
   groq:      { env: GROQ_API_KEY,  base_url: "https://api.groq.com/openai/v1" }
+  openrouter: { env: OPENROUTER_API_KEY, base_url: "https://openrouter.ai/api/v1" }
   ollama:    { env: OLLAMA_BASE_URL }   # e.g. http://localhost:11434/v1 ; no key needed
 
 # USD per 1 million tokens. ESTIMATES used only for the budget guard and the usage chart.
@@ -20,6 +21,21 @@ pricing:
   gemini-2.5-flash: { in: 0.3, out: 2.5 }
   llama-3.3-70b-versatile: { in: 0.6, out: 0.8 }
   llama3.1: { in: 0.0, out: 0.0 }       # local
+
+# OpenRouter free models, tried in this order after any paid provider you have configured (or first, if you set
+# LLM_DEFAULT_PROVIDER=openrouter). Free models rotate on OpenRouter: if one disappears the next is tried. The last entry,
+# openrouter/free, lets OpenRouter pick any currently-available free model. Free tier limits: about 20 requests/minute and
+# 50/day (1000/day if you have bought $10 of credits). To rank what is available right now and test it with real calls
+# on your machine, run `make openrouter-check`, then put the winner in .env as OPENROUTER_MODEL=...
+# Order rationale (from published capability lists, not tested here): Nemotron 3 Super lists structured-output support and
+# is sized for reasoning; gpt-oss-120b lists tool use and structured outputs; Nemotron 3 Ultra is the largest and most used
+# but slower; Gemma 4 31B is a smaller, quick fallback.
+openrouter_free_models:
+  - nvidia/nemotron-3-super-120b-a12b:free
+  - openai/gpt-oss-120b:free
+  - nvidia/nemotron-3-ultra-550b-a55b:free
+  - google/gemma-4-31b-it:free
+  - openrouter/free
 
 # cheap/free model for bulk extraction, stronger model for reasoning tasks
 tasks:
@@ -40,6 +56,7 @@ tasks:
     chain: *cheap
   # Used by later phases (listed now so the Settings page shows the whole routing table):
   analyst:        { temperature: 0.2, max_tokens: 3000, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }, { provider: openai, model: gpt-4o-mini }] }
+  nl_screener:    { temperature: 0.0, max_tokens: 1200, chain: [{ provider: anthropic, model: claude-haiku-5-5 }, { provider: gemini, model: gemini-2.5-flash }, { provider: openai, model: gpt-4o-mini }] }
   chat_agent:     { temperature: 0.2, max_tokens: 3000, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }] }
   explain_model:  { temperature: 0.2, max_tokens: 1500, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }, { provider: openai, model: gpt-4o-mini }] }
   backtest_review: { temperature: 0.2, max_tokens: 2000, chain: [{ provider: anthropic, model: claude-sonnet-5-5 }, { provider: openai, model: gpt-4o-mini }] }

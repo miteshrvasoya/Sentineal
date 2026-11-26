@@ -1,12 +1,16 @@
 "use client";
 import Link from "next/link";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
+import { useMode } from "@/lib/mode";
 
 export default function SymbolTabs() {
   const sym = encodeURIComponent(decodeURIComponent(String(useParams().symbol)));
   const path = usePathname();
   const qs = useSearchParams().toString();
-  const tabs = [{ href: `/s/${sym}`, label: "Overview" }, { href: `/s/${sym}/structure`, label: "Structure & patterns" }, { href: `/s/${sym}/news`, label: "News & sentiment" }, { href: `/s/${sym}/fundamentals`, label: "Fundamentals & risk" }, { href: `/s/${sym}/models`, label: "Models" }, { href: `/s/${sym}/lab`, label: "Model Lab" }, { href: `/s/${sym}/analyst`, label: "AI analyst" }, { href: `/s/${sym}/backtest`, label: "Backtest" }];
+  const { mode } = useMode();
+  const all = [{ href: `/s/${sym}`, label: "Overview" }, { href: `/s/${sym}/structure`, label: "Structure & patterns" }, { href: `/s/${sym}/news`, label: "News & sentiment" }, { href: `/s/${sym}/fundamentals`, label: "Fundamentals & risk" }, { href: `/s/${sym}/models`, label: "Models" }, { href: `/s/${sym}/lab`, label: "Model Lab" }, { href: `/s/${sym}/analyst`, label: "AI analyst" }, { href: `/s/${sym}/backtest`, label: "Backtest" }];
+  const simpleTabs = [{ href: `/s/${sym}`, label: "Summary" }, { href: `/s/${sym}/news`, label: "News" }, { href: `/s/${sym}/fundamentals`, label: "Company health" }];
+  const tabs = mode === "simple" ? simpleTabs : all;
   return (
     <div data-tour="tabs" className="mb-3 flex gap-4 border-b border-slate-200 text-sm dark:border-slate-800">
       {tabs.map((t) => (

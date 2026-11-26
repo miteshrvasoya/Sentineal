@@ -38,17 +38,23 @@ def clean(v: Any) -> Any:
     return v
 
 
+async def load_fundamentals(db: Session, prov: FundamentalsProvider, sym: str):  # type: ignore[no-untyped-def]
+    """Fetch and store a company's financial statements. Raises ProviderError when unavailable."""
+    raw = await prov.fetch(sym)
+    inp = fd.extract_inputs(sym, raw["info"], raw["income"], raw["balance"], raw["cashflow"], int(time.time()))
+    db.merge(FundamentalsSnapshot(symbol=sym, sector=inp.sector, fetched_at=inp.fetched_at, payload=json.dumps(inp.to_dict())))
+    db.commit()
+    return inp
+
+
 @router.post("/fundamentals/{symbol}/refresh")
 async def refresh_fundamentals(symbol: str, db: Session = Depends(get_session),
                                prov: FundamentalsProvider = Depends(get_fund_provider)) -> dict:
     sym = _known(symbol)
     try:
-        raw = await prov.fetch(sym)
+        inp = await load_fundamentals(db, prov, sym)
     except ProviderError as e:
         raise HTTPException(502, f"fundamentals unavailable: {e}") from e
-    inp = fd.extract_inputs(sym, raw["info"], raw["income"], raw["balance"], raw["cashflow"], int(time.time()))
-    db.merge(FundamentalsSnapshot(symbol=sym, sector=inp.sector, fetched_at=inp.fetched_at, payload=json.dumps(inp.to_dict())))
-    db.commit()
     have = {k: v for k, v in inp.cur.__dict__.items() if v is not None}
     return {"symbol": sym, "sector": inp.sector, "fields_found": len(have), "fields_total": len(inp.cur.__dict__),
             "has_prior_year": inp.prev is not None, "price": inp.price}

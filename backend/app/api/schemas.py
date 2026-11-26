@@ -34,6 +34,8 @@ class SymbolOut(BaseModel):
     symbol: str
     name: str
     sector: str
+    exchange: str = "NSE"
+    source: str = "local"
 
 
 class WatchlistAdd(BaseModel):

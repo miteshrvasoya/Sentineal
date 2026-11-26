@@ -166,7 +166,7 @@ export const colorFor = (i: number) => PALETTE[i % PALETTE.length];
 
 /** Several time series on one axis, with a legend. Dates are placed by real time, so series of different lengths line up. */
 export function MultiLine({ series, label, fmt = (v: number) => v.toFixed(1), baseline }: { series: Series[]; label: string; fmt?: (v: number) => string; baseline?: number }) {
-  const Hh = 200, L = 46, R = 8, T = 8, B = 20;
+  const Hh = 200, L = 60, R = 8, T = 8, B = 20;
   const all = series.flatMap((s) => s.points);
   if (all.length < 2) return <p className="text-sm text-slate-500">Not enough data for {label}.</p>;
   const ts = all.map((p) => Date.parse(p.date));

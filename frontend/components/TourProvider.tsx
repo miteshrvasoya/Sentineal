@@ -1,6 +1,7 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMode } from "@/lib/mode";
 import { TOURS, type TourDef } from "@/lib/tours";
 
 type Ctx = {
@@ -30,6 +31,7 @@ function currentSymbol(path: string): string {
 export default function TourProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { mode, setMode } = useMode();
   const [tour, setTour] = useState<TourDef | null>(null);
   const [idx, setIdx] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -55,12 +57,14 @@ export default function TourProvider({ children }: { children: React.ReactNode }
   const start = useCallback((id: string) => {
     const t = TOURS.find((x) => x.id === id);
     if (!t) return;
+    if (t.advanced && mode !== "advanced") setMode("advanced");      // these tours show professional tools
+    if (t.simple && mode !== "simple") setMode("simple");            // this one shows the beginner screens
     symbolRef.current = currentSymbol(window.location.pathname);
     setIdx(0);
     setRect(null);
     setMissing(false);
     setTour(t);
-  }, []);
+  }, [mode, setMode]);
 
   const step = tour?.steps[idx];
   const routeFor = useCallback((r?: string) => (r ? r.replace("{symbol}", encodeURIComponent(symbolRef.current)) : undefined), []);

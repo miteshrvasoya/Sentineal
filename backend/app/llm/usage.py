@@ -28,6 +28,8 @@ class UsageTracker:
         return datetime.now(cal.IST).strftime("%Y-%m-%d")
 
     def cost(self, model: str, tokens_in: int, tokens_out: int) -> float:
+        if model.endswith(":free") or model == "openrouter/free":      # OpenRouter free models cost nothing (but have request limits)
+            return 0.0
         p = self.pricing.get(model, self.default_price)
         return (tokens_in * p["in"] + tokens_out * p["out"]) / 1_000_000
 

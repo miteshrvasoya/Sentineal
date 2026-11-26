@@ -10,7 +10,8 @@ This table grows every phase. The newest row is on top.
 
 | Phase | Theme | One-line summary | Status |
 |---|---|---|---|
-| **10A** | **Chat, plain-English screener, briefing, red flags** | A read-only chat assistant with cited lookups, screens described in words, an AI daily briefing, rule-based red flags and a prompt-injection safety evaluation | **NEW** |
+| **11** | **Beginner mode, My Investments, Find stocks, full search, OpenRouter** | A Simple view for newcomers: track what you own with profit and loss and a portfolio check-up, plain-English short- and long-term ideas, search across all ~2,200 NSE companies, and free AI explanations through OpenRouter | **NEW** |
+| 10A | Chat, plain-English screener, briefing, red flags | A read-only chat assistant with cited lookups, screens described in words, an AI daily briefing, rule-based red flags and a prompt-injection safety evaluation | **NEW** |
 | 10 | Screener, breadth, scheduler, Learn | Filter all stored stocks by rules, relative-strength ranks, market breadth, sector rotation, optional background jobs, database migrations and 12 lessons for engineers | done |
 | 9 | Backtester with Indian costs and a luck test | Replay four classic trading rules with STT/stamp/GST/slippage, held-out data, a parameter-search penalty, a bootstrap and a random-timing test | done |
 | 8A | The AI analyst, with guardrails | Optional AI that explains computed facts, why a stock moved, a model's output and a backtest's trustworthiness, with citations and safety checks | done |
@@ -63,7 +64,58 @@ Every phase has an **interactive tour** inside the app, so you can see what it a
 
 ---
 
-## Phase 10A: chat, plain-English screens, briefing and red flags (NEW)
+## Phase 11: beginner mode, My Investments, Find stocks, full search and OpenRouter (NEW)
+
+> **Tour:** open the **Tour** menu and pick "Phase 11: Welcome". It switches to Simple view for you and walks through everything below.
+
+**New to investing?** Start here: use the **Simple** view (the default), read **Learn** lessons 1 to 8, then take the Welcome tour. The rest of this guide describes the professional tools you can unlock with the **Advanced** switch.
+
+### What's new
+
+- **Simple / Advanced switch** (top right, remembered in your browser). Simple shows four places: *My investments*, *Find stocks*, *Ask* and *Learn*, and a plain-English page for every stock. Advanced is the full set of tools from the earlier phases.
+- **My investments** (the home page): record what you bought and sold, and see its worth today, profit or loss, today's change, your average yearly return, how your money has grown, how it is spread across industries, and a **portfolio check-up** in plain English.
+- **Find stocks** (`/discover`): short-term (weeks to months) and long-term (years) ideas, each with a label, a score, ✓ reasons and ⚠ things to look into, filterable by how bumpy a ride you can handle and by industry. A **Load more stocks** button fetches about 80 well-known companies so the rankings have something to compare.
+- **A plain-English stock page**: price history with 3M/6M/1Y/5Y ranges, a short-term and a long-term look, the company in four numbers explained in words, warning signs, and an optional AI summary.
+- **Search that covers every NSE stock** (about 2,200), by name, nickname, symbol or typo, plus a live lookup for BSE and new listings.
+- **OpenRouter** as an AI provider, with a ranked list of the free models available.
+- **Learn** now starts with eight beginner lessons; jargon in the app has hover explanations.
+
+### Try it
+
+1. Search "zomato" or "relience" and see the right stock appear.
+2. On **My investments**, add a purchase (or paste several), then read the check-up.
+3. Open **Find stocks**, press **Load more stocks**, then compare the Short term and Long term tabs.
+4. Click a stock, read both looks, then click **Explain this stock** if you have set up OpenRouter.
+5. Flip to **Advanced** to see the charts, then back.
+
+### How it works (engineering view)
+
+- **Portfolio = a ledger.** Only buy and sell rows are stored (`portfolio_txns`). Positions, average cost and profit are always recomputed by replaying them in date order (buys before sells on the same day), with the **average-cost method** brokers use: a sale realises `proceeds - average cost x shares` and keeps the average of what remains. A sale larger than your holding at that moment is rejected, as is deleting a buy that a later sale depends on. Bulk imports are all-or-nothing.
+- **Valuation** uses the stored closing price of each stock; opening the page refreshes stale ones. *Your average yearly return* is an **XIRR**: the yearly rate that makes all your dated cash flows plus today's value sum to zero (solved by bisection). It is hidden for the first three months because a short window gives wild annualised numbers.
+- **Check-up** is a set of readable rules: a position over 25% (medium) or 40% (high) of the value, an industry over 50%, a holding down more than 25%, fewer than five stocks, stale prices, and any serious red flag from Phase 10A. The wording is deliberately observation, not instruction, and a test checks that none of it reads as advice.
+- **Ideas are checklists, not black boxes.** Short term: strength compared with the other loaded stocks over 6 and 3 months, trend (above the 50- and 200-day averages), not overheated (RSI), near its 1-year high, volume, and calm price moves. Long term: return on equity, margin, debt, the Piotroski score, bankruptcy risk, sales and profit growth, price relative to profit, dividend, 3-year track record, worst fall, steadiness. Each check awards points and produces a sentence; the score is points earned out of points possible **over the checks that had data**, and a long-term view needs at least 55% of the checks or it says "Not enough data" rather than ranking on guesses. Red flags subtract points.
+- **Search** scores every company: exact symbol, symbol prefix, nickname or former name (Zomato to Eternal), words of the name, substring, then fuzzy typo matching, only shown when nothing matches properly. The NSE list is a bundled snapshot; if the internet is reachable the box also queries Yahoo Finance, which finds BSE stocks (symbols ending `.BO`) and companies listed since the snapshot.
+- **OpenRouter** uses the same OpenAI-compatible client as the other providers with the attribution headers OpenRouter asks for. Free models are tried in a configured order (`config/llm.yaml`), falling back to `openrouter/free`. Free models cost nothing, so they do not use the daily money budget. The Settings page and `make openrouter-check` rank the live free catalogue by declared capabilities (JSON-schema support, tools, context length, size) and the command tests the top few with real calls on your key.
+- **Databases.** Everything above works on SQLite or PostgreSQL; the new table has its own Alembic migration.
+
+### Ideas explained
+
+- **Average buy price:** total paid divided by shares held, so buying 10 at ₹100 and 10 at ₹120 gives ₹110.
+- **Paper profit versus real profit:** a gain or loss is only locked in when you sell.
+- **Momentum:** stocks that outperformed recently tend to keep outperforming for a while, until they do not. It is a tilt, not a prediction.
+- **Quality and value:** profitable, lightly indebted, growing businesses bought at sensible prices have historically done better over many years, but the market often prices that in already.
+
+### How far to trust it
+
+- **Ideas are rules applied to past data.** They do not know about new competition, management, regulation or the economy, and past strength or quality does not guarantee anything. A "Looks strong" label means "passed most checks", not "buy".
+- Rankings only compare **the stocks you have loaded**. With 10 stocks, "stronger than 90%" means one or two stocks.
+- Prices and company financials come from free public sources and can be late, missing or wrong, especially around splits and after renamings (for example TATAMOTORS was split into several companies). Always confirm with your broker.
+- Profit and loss uses your recorded prices and **ignores taxes**. If a stock split or paid a bonus, your recorded purchase price must be adjusted to match.
+- The bundled NSE list is a snapshot (newest listing late December 2025). BSE-only and newer stocks rely on the live lookup.
+- The free OpenRouter models rotate and have limits (about 20 requests a minute and 50 a day); the order in the config is based on published capability lists and could not be tested live in development. Free providers may keep the text you send, which here is only prices, computed numbers and news headlines. Run `make openrouter-check` to test on your own key.
+- All tests use synthetic data. Nothing here is advice; for personal advice speak to a SEBI-registered investment adviser.
+
+## Phase 10A: chat, plain-English screens, briefing and red flags
 
 > **Tour:** open the **Tour** menu and pick "Phase 10A". It visits Ask, the Screener, Briefing, an analyst tab and the safety panel.
 
@@ -800,6 +852,10 @@ Yahoo Finance is an unofficial source that can break without notice, which is wh
 | Term | Meaning |
 |---|---|
 | **Adjusted price** | History rescaled for splits, bonuses and dividends so it is continuous |
+| **Average buy price** | Total paid divided by shares held (Phase 11) |
+| **Index fund** | A low-cost fund holding all stocks of an index such as the Nifty 50 (Phase 11) |
+| **SIP** | Investing a fixed amount regularly instead of all at once (Phase 11) |
+| **XIRR** | Your yearly return worked out from the dates you actually invested (Phase 11) |
 | **Prompt injection** | Text in data that tries to instruct an AI; defended by separating data from instructions (Phase 10A) |
 | **Red flag** | A rule-based warning sign that suggests looking closer (Phase 10A) |
 | **Breadth** | The share of stocks taking part in a market move (Phase 10) |

@@ -59,6 +59,10 @@ FIELDS: list[Field] = [
     Field("roe", "Return on equity", "Fundamentals", "number", "pct", "Net income / equity."),
     Field("debt_equity", "Debt / equity", "Fundamentals", "number", "x", "Leverage."),
     Field("revenue_growth", "Revenue growth", "Fundamentals", "number", "pct", "Latest year-on-year revenue growth."),
+    Field("earnings_growth", "Profit growth", "Fundamentals", "number", "pct", "Latest year-on-year growth in profit."),
+    Field("net_margin", "Profit margin", "Fundamentals", "number", "pct", "Share of each rupee of sales that becomes profit."),
+    Field("piotroski", "Financial health score (0-9)", "Fundamentals", "number", "score", "Piotroski F-score: 9 simple yes/no checks of a company's finances. 7 or more is strong."),
+    Field("cagr_3y", "Yearly growth, 3 years", "Momentum", "number", "pct", "Average yearly price growth over the last 3 years (needs 3 years of stored prices)."),
     Field("dividend_yield", "Dividend yield", "Fundamentals", "number", "pct", "Annual dividend / price."),
 ]
 FIELD_MAP = {f.key: f for f in FIELDS}
@@ -125,8 +129,21 @@ def snapshot_row(db: Session, symbol: str, sector: str) -> dict[str, Any] | None
         row["sentiment"] = None
     fv = fundamentals_view(db, symbol)
     ratios = (fv or {}).get("ratios") or {}
-    for k in ("pe", "pb", "roe", "debt_equity", "revenue_growth", "dividend_yield"):
+    for k in ("pe", "pb", "roe", "debt_equity", "revenue_growth", "dividend_yield", "earnings_growth", "net_margin"):
         row[k] = _num(ratios.get(k))
+    row["piotroski"] = _num(((fv or {}).get("piotroski") or {}).get("score")) if ((fv or {}).get("piotroski") or {}).get("evaluated", 0) >= 6 else None
+    altman = (fv or {}).get("altman") or {}
+    row["altman_zone"] = altman.get("zone") if altman.get("applicable") else None
+    row["has_fundamentals"] = fv is not None
+    from app.data.analysis import close_series
+    full = close_series(db, symbol)
+    if full is not None and len(full) >= 3 * 252 - 20:
+        w3 = full.iloc[-3 * 252:]
+        row["cagr_3y"] = _num((w3.iloc[-1] / w3.iloc[0]) ** (1 / 3) - 1)
+        row["max_dd_3y"] = _num((w3 / w3.cummax() - 1).min())
+    else:
+        row["cagr_3y"] = row["max_dd_3y"] = None
+    row["history_days"] = int(len(full)) if full is not None else 0
     return row
 
 

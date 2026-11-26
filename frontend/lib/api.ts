@@ -5,7 +5,7 @@ export type PricesResponse = {
   symbol: string; interval: string; adjusted: boolean; source: string | null;
   count: number; downsampled: boolean; warnings: string[]; bars: Bar[];
 };
-export type SymbolOut = { symbol: string; name: string; sector: string };
+export type SymbolOut = { symbol: string; name: string; sector: string; exchange?: string; source?: string };
 export type Quote = { symbol: string; last: number; prev_close: number; change: number; change_pct: number; source: string };
 export type Health = {
   status: string;
@@ -41,12 +41,24 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function del<T>(path: string): Promise<T> {
+  let res: Response;
+  try { res = await fetch(`${API}${path}`, { method: "DELETE" }); }
+  catch { throw new ApiError(0, `Cannot reach the QuantLens backend at ${API}. Is it running (make dev)?`); }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { const j = await res.json(); detail = typeof j.detail === "string" ? j.detail : j.error ?? detail; } catch { /* ignore */ }
+    throw new ApiError(res.status, String(detail));
+  }
+  return res.json() as Promise<T>;
+}
+
 export const api = {
   health: () => get<Health>("/health"),
   prices: (symbol: string, interval: string, adjusted: boolean) =>
     get<PricesResponse>(`/prices/${encodeURIComponent(symbol)}?interval=${interval}&adjusted=${adjusted}`),
   quote: (symbol: string) => get<Quote>(`/quote/${encodeURIComponent(symbol)}`),
-  search: (q: string) => get<SymbolOut[]>(`/symbols/search?q=${encodeURIComponent(q)}`),
+  search: (q: string) => get<SymbolOut[]>(`/symbols/search?q=${encodeURIComponent(q)}&limit=12`),
   watchlist: () => get<string[]>("/watchlist"),
   providers: () => get<ProviderStatus[]>("/providers/health"),
   quality: (symbol: string, interval = "1d") => get<Quality>(`/data-quality/${encodeURIComponent(symbol)}?interval=${interval}`),
@@ -100,6 +112,19 @@ export const api = {
   redFlags: (symbol: string) => get<RedFlags>(`/redflags/${encodeURIComponent(symbol)}`),
   redFlagsAll: () => get<RedFlagRow[]>("/redflags"),
   safetyEval: () => get<SafetyEval>("/llm/eval/safety"),
+  portfolio: () => get<Portfolio>("/portfolio"),
+  pfHistory: () => get<PfHistory>("/portfolio/history"),
+  pfTxns: () => get<PfTxn[]>("/portfolio/transactions"),
+  pfAdd: (t: PfTxnIn | { transactions: PfTxnIn[] }) => postJson<{ added: number; message: string; price_problems: string[] }>("/portfolio/transactions", t),
+  pfDelete: (id: number) => del<{ deleted: number }>(`/portfolio/transactions/${id}`),
+  pfRefresh: () => post<{ refreshed: number; problems: { symbol: string; error: string }[] }>("/portfolio/refresh"),
+  discoverStatus: () => get<DiscoverStatus>("/discover/status"),
+  discoverLoad: () => post<JobOut>("/discover/load"),
+  ideas: (horizon: string, risk: string, sector: string) => get<IdeasOut>(`/discover/ideas?horizon=${horizon}&risk=${risk}&limit=10${sector ? `&sector=${encodeURIComponent(sector)}` : ""}`),
+  stockView: (symbol: string) => get<StockView>(`/discover/stock/${encodeURIComponent(symbol)}`),
+  watchAdd: (symbol: string) => postJson<string[]>("/watchlist", { symbol }),
+  watchRemove: (symbol: string) => del<string[]>(`/watchlist/${encodeURIComponent(symbol)}`),
+  orModels: () => get<ORModels>("/llm/openrouter/models"),
   indices: async () => ({
     nifty: await get<Quote>("/quote/NIFTY%2050").catch(() => null),
     vix: await get<Quote>("/quote/INDIA%20VIX").catch(() => null),
@@ -354,3 +379,25 @@ export type SafetyEval = {
   injection: { n: number; safe: number; violations: number; blocked_by_guardrail: number; resisted_by_model: number; safe_rate: number | null; rows: { id: string; kind: string; result: string; violations?: string[] }[]; stopped: string | null; note: string };
   agent: { n: number; tool_choice_accuracy: number | null; answer_rate: number | null; withheld_rate: number | null; cited_rate: number | null; stopped: string | null };
 };
+
+export type PfPosition = { symbol: string; name: string; sector: string; qty: number; avg_cost: number; invested: number; price: number | null; price_as_of: string | null;
+  value: number | null; first_buy: string | null; realised: number; pl?: number; pl_pct?: number | null; day_change?: number; day_change_pct?: number | null; stale_days: number | null; weight: number | null };
+export type PfCheck = { level: "high" | "medium" | "info" | "good"; title: string; text: string; symbols: string[] };
+export type Portfolio = {
+  empty: boolean;
+  summary: { value: number; invested: number; pl: number; pl_pct: number | null; realised: number; total_pl: number; day_change: number; day_change_pct: number | null;
+    annual_return: number | null; annual_return_note: string | null; holdings: number; unpriced: string[] };
+  positions: PfPosition[]; allocation: { by_sector: { sector: string; weight: number; value: number }[] };
+  closed: { symbol: string; name: string; realised: number; bought: number; sold: number }[]; checkup: PfCheck[];
+};
+export type PfTxn = { id: number; symbol: string; side: "buy" | "sell"; qty: number; price: number; fees: number; date: string; note: string; amount: number };
+export type PfTxnIn = { symbol: string; side: "buy" | "sell"; qty: number; price: number; date: string; fees?: number; note?: string };
+export type PfHistory = { points: { date: string; value: number; put_in: number }[]; note?: string };
+export type Idea = { symbol: string; sector: string; horizon: "short" | "long"; score: number | null; label: string; ranked: boolean; confidence: number; checks: string; risk: string;
+  why: string[]; watch_out: string[]; change_my_mind: string[]; numbers: Record<string, number | null> };
+export type IdeasOut = { horizon: "short" | "long"; horizon_text: string; ideas: Idea[]; considered: number; universe: number; unranked: number; disclaimer: string; sectors: string[] };
+export type DiscoverStatus = { popular: number; loaded: number; with_company_numbers: number; stored_total: number; enough_to_compare: boolean; hint: string };
+export type StockView = { symbol: string; short: Idea; long: Idea; compared_with: number; disclaimer: string };
+export type JobOut = { id: string; kind: string; status: "queued" | "running" | "done" | "failed"; progress: number; error: string | null; result: Record<string, unknown> | null };
+export type ORModels = { ok: boolean; error?: string; ranked: { id: string; name: string; score: number; context: number | null; reasons: string[]; structured: boolean }[]; defaults?: string[];
+  current: string | null; key_set: boolean; recommended?: string | null; note?: string };

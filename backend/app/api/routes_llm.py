@@ -300,3 +300,19 @@ async def llm_eval_safety(db: Session = Depends(get_session), r: LLMRouter = Dep
     if not r.available("chat_agent"):
         raise HTTPException(503, "LLM unavailable: no provider configured")
     return {"injection": await eval_injections(r, db), "agent": await eval_agent(r, db)}
+
+
+@router.get("/llm/openrouter/models")
+async def openrouter_models() -> dict:
+    """The free OpenRouter models available now, ranked for this app (needs internet; the key is optional for listing)."""
+    from app.llm import openrouter as orr
+    cfg = get_settings()
+    try:
+        ranked = orr.rank_free_models(await orr.fetch_models(cfg.openrouter_api_key), 8)
+    except Exception as e:  # noqa: BLE001
+        from app.llm.router import load_config
+        return {"ok": False, "error": f"Could not reach OpenRouter ({type(e).__name__}). Showing the built-in order instead.", "ranked": [],
+                "defaults": load_config().openrouter_free_models, "current": cfg.openrouter_model or None, "key_set": bool(cfg.openrouter_api_key)}
+    return {"ok": True, "ranked": ranked, "current": cfg.openrouter_model or None, "key_set": bool(cfg.openrouter_api_key),
+            "recommended": ranked[0]["id"] if ranked else None,
+            "note": "Ranked by declared capabilities. Run `make openrouter-check` to test the top models with real calls on your account."}

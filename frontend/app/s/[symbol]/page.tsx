@@ -4,13 +4,15 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import CandleChart from "@/components/CandleChart";
 import ScorecardPanel from "@/components/ScorecardPanel";
+import SimpleStock from "@/components/SimpleStock";
 import SymbolTabs from "@/components/SymbolTabs";
+import { useMode } from "@/lib/mode";
 import { api } from "@/lib/api";
 import { DEFAULT_LAYOUT, OVERLAYS, PANES, type Layout } from "@/lib/overlays";
 
 const INTERVALS = ["1m", "5m", "15m", "1h", "1d"] as const;
 
-function SymbolView() {
+function AdvancedStock() {
   const symbol = decodeURIComponent(String(useParams().symbol)).toUpperCase();
   const router = useRouter();
   const sp = useSearchParams();
@@ -115,6 +117,13 @@ function SymbolView() {
       <ScorecardPanel symbol={symbol} />
     </div>
   );
+}
+
+function SymbolView() {
+  const symbol = decodeURIComponent(String(useParams().symbol)).toUpperCase();
+  const { mode, ready } = useMode();
+  if (!ready) return <div className="skeleton h-[520px]" />;
+  return mode === "simple" ? <SimpleStock symbol={symbol} /> : <AdvancedStock />;
 }
 
 export default function Page() {

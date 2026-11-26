@@ -150,6 +150,6 @@ async def test_default_provider_moves_to_front_and_status_shape():
 def test_real_config_file_is_valid():
     from app.llm.router import load_config
     cfg = load_config()
-    assert {"news_enrich", "sentiment_llm", "analyst", "chat_agent"} <= set(cfg.tasks)
-    assert all(e.provider in {"anthropic", "gemini", "openai", "groq", "ollama"} for t in cfg.tasks.values() for e in t.chain)
+    assert {"news_enrich", "sentiment_llm", "analyst", "chat_agent", "nl_screener", "briefing", "explain_move", "explain_model", "backtest_review"} <= set(cfg.tasks)
+    assert all(e.provider in {"anthropic", "gemini", "openai", "groq", "ollama", "openrouter"} for t in cfg.tasks.values() for e in t.chain)
     json.dumps(cfg.model_dump())

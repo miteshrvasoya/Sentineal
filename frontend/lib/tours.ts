@@ -15,7 +15,7 @@ export type Step = {
   note?: string; // shown when the target is not on screen
 };
 
-export type TourDef = { id: string; phase: string; title: string; blurb: string; isNew?: boolean; steps: Step[] };
+export type TourDef = { id: string; phase: string; title: string; blurb: string; isNew?: boolean; /** needs Advanced mode (starting it switches the view for you) */ advanced?: boolean; /** needs Simple mode (starting it switches the view for you) */ simple?: boolean; steps: Step[] };
 
 const OV = "/s/{symbol}";
 const ST = "/s/{symbol}/structure";
@@ -28,9 +28,36 @@ const BT = "/s/{symbol}/backtest";
 const NOTE = "Appears after you run a screen.";
 
 
-export const TOURS: TourDef[] = [
+const RAW_TOURS: TourDef[] = [
   {
-    id: "phase-10a", phase: "Phase 10A", title: "Chat, plain-English screens, briefing and red flags", isNew: true,
+    id: "phase-11", phase: "Phase 11", title: "Welcome: track your money and find ideas", isNew: true, simple: true,
+    blurb: "A beginner-friendly start: record what you own, see profit and loss, get a check-up, and find stocks to research, all in plain English.",
+    steps: [
+      { title: "Welcome", body: "This app helps you do three things: keep track of the stocks you own, look for new stocks to research (for the short or the long term), and learn how investing works.\n\nIt never buys or sells anything for you; it only reads public prices and does the sums. Nothing here is advice. This tour takes about two minutes." },
+      { route: "/", target: "main-nav", title: "Four places to go", body: "My investments is your dashboard. Find stocks gives ideas to research. Ask lets you type a question in plain words (needs the optional AI helper). Learn explains the basics step by step." },
+      { target: "search", title: "Search any stock", body: "Type a company name, a nickname, a symbol or even a typo: 'Tata Motors', 'SBI', 'zomato', 'relience'. It searches about 2,200 NSE companies, and also looks online for BSE stocks and newer listings. Press Enter to open the top match." },
+      { target: "mode-toggle", title: "Simple or Advanced", body: "You are in Simple view: plain English, only what a beginner needs. Advanced adds candlestick charts, indicators, forecasting models, backtests and the other professional tools. Switch whenever you like; nothing is lost." },
+      { route: "/", target: "pf-welcome", title: "Start with what you own", body: "On a fresh install this box explains the three ways to begin.", note: "Shown only until you add your first purchase." },
+      { route: "/", target: "pf-add", title: "Add a purchase or a sale", body: "Pick the stock, say whether you bought or sold, how many shares, the price per share and the date. 'Use latest' fills in today's price. Charges are optional. Have a list? Paste many trades at once under the form.\n\nYour entries stay on your computer, in your own database." },
+      { route: "/", target: "pf-summary", title: "How you are doing", body: "What your holdings are worth today, what you put in, your profit or loss, and today's change. Prices are refreshed when you open the page. Profit or loss is on paper until you sell.", note: "Appears after you add your first purchase." },
+      { route: "/", target: "pf-checkup", title: "Portfolio check-up", body: "Plain-English observations about how your money is spread: one stock being too big a share, too much in one industry, a holding down a lot, or a serious warning sign. They are observations, not instructions.", note: "Appears after you add your first purchase." },
+      { route: "/", target: "pf-holdings", title: "What you own", body: "Each stock with your average buy price, today's price, profit or loss, and its share of your total. The ⚠️ marks stocks mentioned in the check-up. Hover the dotted-underline words for a plain explanation.", note: "Appears after you add your first purchase." },
+      { route: "/discover", target: "disc-load", title: "Load more stocks to compare", body: "Ideas are ranked by comparing stocks with each other, so they are only as good as the set loaded. 'Load more stocks' fetches about 80 well-known companies, prices and financials, in the background (a few minutes)." },
+      { route: "/discover", target: "disc-horizon", title: "Short term or long term", body: "Short term (weeks to months) looks at recent strength and trend. Long term (years) looks at the company: profits, debt, growth and price. They ask different questions, so a stock can look different in each." },
+      { route: "/discover", target: "disc-ideas", title: "Ideas, explained", body: "Each card shows a label, a score out of 100, how bumpy the ride has been, ✓ reasons and ⚠ things to look into. 'Show more' adds numbers and what would change the view. 'Watch' follows a stock; 'I own this' opens the form.\n\nThese are starting points for your own research, not recommendations.", note: "Appears once some stocks are loaded." },
+      { route: "/discover", target: "disc-how", title: "How to read them", body: "A short explanation of what the labels mean, why short term follows momentum and long term follows business quality, and what the ups and downs rating tells you about the ride." },
+      { route: "/s/{symbol}", target: "stock-chart", title: "A stock in plain English", body: "Click any stock to see its price history, then a short-term and a long-term look, the company in four numbers explained in words, and warning signs.", note: "Appears once prices have loaded." },
+      { route: "/s/{symbol}", target: "stock-short", title: "Short-term look", body: "A label (Looks strong, Mixed or Looks weak), a score and the checklist behind it. The line at the bottom tells you the price level where the short-term trend would turn negative.", note: "Appears once prices have loaded." },
+      { route: "/s/{symbol}", target: "stock-long", title: "Long-term look", body: "Based on the company's profits, debt, growth, price and track record. If company financials are not loaded it says so instead of guessing.", note: "Appears once prices have loaded." },
+      { route: "/s/{symbol}", target: "stock-flags", title: "Warning signs", body: "Rule-based checks for problems like heavy debt, losses, a deep fall or a sudden jump in volatility. No flags does not mean no risk." },
+      { route: "/s/{symbol}", target: "stock-ai", title: "Explain it in simple words", body: "An optional AI reads the computed numbers and writes a short plain-language summary, citing what it used. It needs a free OpenRouter key; everything else works without it." },
+      { route: "/settings", target: "openrouter", title: "Turn on the free AI helper", body: "Create a free OpenRouter key, add it to your .env file and restart. The app tries several free models in order. 'Which free model is best right now?' ranks what is available." },
+      { route: "/learn", target: "learn-page", title: "Learn the basics", body: "Eight beginner lessons (what a share is, why prices move, short versus long term, risk, SIPs and index funds, common mistakes, what to sort out first), then deeper ones. Each has something to try and a question to check yourself." },
+      { title: "You are set", body: "Add what you own, look at Find stocks, and read a lesson or two. Go slowly, never invest money you may need soon, and remember that no score or idea in this app is a promise." },
+    ],
+  },
+  {
+    id: "phase-10a", phase: "Phase 10A", title: "Chat, plain-English screens, briefing and red flags",
     blurb: "Ask questions in words, describe a screen instead of building it, get a daily briefing, and see rule-based warning signs.",
     steps: [
       { title: "Talking to your data", body: "Phase 10A adds a chat assistant, a plain-English screener, a daily briefing and a red-flag detector.\n\nThe AI parts are read-only and fenced: the assistant can only call lookup tools, must cite what it looked up, can only quote numbers those lookups returned, and cannot give advice or trade. The red flags need no AI at all." },
@@ -56,7 +83,7 @@ export const TOURS: TourDef[] = [
       { route: "/market", target: "mkt-breadth", title: "Market breadth", body: "How many stocks are participating? An index can rise while most stocks fall. Breadth shows the share above their 50- and 200-day averages, up over 5 days and 1 month, and near 52-week highs or lows.\n\nIt covers only the stocks stored here, so with a short watchlist it is a rough guide." },
       { route: "/market", target: "mkt-sectors", title: "Sector rotation", body: "Median returns by sector over four windows, with ranks. Rotation compares a sector's 6-month rank with its 1-month rank: green means it is climbing (money moving in), red means fading." },
       { route: "/settings", target: "scheduler", title: "The scheduler", body: "Optional background jobs: refresh prices after the NSE close, fetch and score news, AI-enrich it, and (if switched on) retrain models. Each run is recorded, failures are retried a few times, and jobs never overlap.\n\nIt is off by default; set SCHEDULER_ENABLED=true in .env. You can run any job by hand with 'Run now'." },
-      { route: "/learn", target: "learn-page", title: "Learn", body: "Twelve short lessons on the ideas behind the app, written for engineers: returns, volatility, trend vs mean reversion, multiple testing, walk-forward validation, costs, drawdown and how to read the verdicts. Each has something to try and a question to check yourself." },
+      { route: "/learn", target: "learn-page", title: "Learn", body: "Twenty short lessons: eight for complete beginners, then deeper ones for engineers: returns, volatility, trend vs mean reversion, multiple testing, walk-forward validation, costs, drawdown and how to read the verdicts. Each has something to try and a question to check yourself." },
       { title: "That is Phase 10", body: "The platform now has data, analysis, models, backtests, AI explanations, a screener and a scheduler. The remaining phase adds a chat agent, a natural-language screener, a daily briefing and red-flag detection." },
     ],
   },
@@ -212,5 +239,8 @@ export const TOURS: TourDef[] = [
     ],
   },
 ];
+
+// Every tour before the beginner mode (phase 11) walks through professional tools, so it runs in Advanced mode.
+export const TOURS: TourDef[] = RAW_TOURS.map((t) => ({ ...t, advanced: t.advanced ?? !t.simple }));
 
 export const NEWEST_TOUR = TOURS.find((t) => t.isNew);

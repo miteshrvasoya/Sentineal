@@ -58,3 +58,24 @@ def spawn(db_factory: Callable, jid: str, fn: Callable) -> asyncio.Task:  # type
     _tasks.add(t)
     t.add_done_callback(_tasks.discard)
     return t
+
+
+async def run_async_job(db_factory: Callable, jid: str, fn: Callable[[Callable[[float], None]], Any]) -> None:  # type: ignore[type-arg]
+    """Like run_job, but `fn(progress)` is a coroutine function (network work that must stay on the event loop)."""
+    _update(db_factory, jid, status="running", started=int(time.time()))
+
+    def progress(p: float) -> None:
+        _update(db_factory, jid, progress=min(0.99, max(0.0, p)))
+    try:
+        result = await fn(progress)
+        _update(db_factory, jid, status="done", progress=1.0, finished=int(time.time()), result=json.dumps(result, default=float))
+    except Exception as e:  # noqa: BLE001
+        log.exception("job %s failed", jid)
+        _update(db_factory, jid, status="failed", finished=int(time.time()), error=f"{type(e).__name__}: {e}"[:500])
+
+
+def spawn_async(db_factory: Callable, jid: str, fn: Callable) -> asyncio.Task:  # type: ignore[type-arg]
+    t = asyncio.create_task(run_async_job(db_factory, jid, fn))
+    _tasks.add(t)
+    t.add_done_callback(_tasks.discard)
+    return t

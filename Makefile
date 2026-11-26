@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend test seed lint install tour-check migrate db-up db-down db-reset db-psql db-import
+.PHONY: dev backend frontend test seed lint install tour-check migrate db-up db-down db-reset db-psql db-import openrouter-check refresh-symbols
 install:
 	cd backend && uv sync
 	cd frontend && npm install --no-audit --no-fund
@@ -34,3 +34,9 @@ db-psql:
 	docker compose exec db psql -U quantlens -d quantlens
 db-import:
 	cd backend && uv run python scripts/sqlite_to_postgres.py
+
+openrouter-check:
+	cd backend && uv run python scripts/openrouter_best_free.py
+
+refresh-symbols:
+	cd backend && uv run python scripts/refresh_symbols.py

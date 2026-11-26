@@ -9,8 +9,10 @@ from app.llm.base import LLMError, LLMProvider, LLMRateLimited, LLMResult
 class OpenAICompatProvider(LLMProvider):
     name = "openai_compat"
 
-    def __init__(self, name: str, key: str = "", base_url: str | None = None, needs_key: bool = True, client=None) -> None:  # type: ignore[no-untyped-def]
+    def __init__(self, name: str, key: str = "", base_url: str | None = None, needs_key: bool = True, client=None,  # type: ignore[no-untyped-def]
+                 headers: dict[str, str] | None = None) -> None:
         self.name, self.key, self.base_url, self.needs_key, self._client = name, key, base_url, needs_key, client
+        self.headers = headers or {}
 
     def is_configured(self) -> bool:
         if self._client is not None:
@@ -20,7 +22,7 @@ class OpenAICompatProvider(LLMProvider):
     def _c(self):  # type: ignore[no-untyped-def]
         if self._client is None:
             from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(api_key=self.key or "not-needed", base_url=self.base_url)
+            self._client = AsyncOpenAI(api_key=self.key or "not-needed", base_url=self.base_url, default_headers=self.headers or None)
         return self._client
 
     async def complete(self, *, system, user, model, temperature=0.0, max_tokens=1024, json_mode=False) -> LLMResult:  # type: ignore[no-untyped-def]
@@ -50,6 +52,12 @@ class OpenAICompatProvider(LLMProvider):
                 raise LLMError(f"{self.name} error: {type(e).__name__}") from None
         else:
             raise LLMError(f"{self.name}: request kept being rejected")
+        if not getattr(resp, "choices", None):          # some gateways (OpenRouter) report upstream failures inside a 200 body
+            err = (getattr(resp, "model_extra", None) or {}).get("error") or getattr(resp, "error", None)
+            code = str(err.get("code", "")) if isinstance(err, dict) else ""
+            if code == "429":
+                raise LLMRateLimited(f"{self.name} rate limited")
+            raise LLMError(f"{self.name} returned no answer" + (f" ({code})" if code else ""))
         u = resp.usage
         return LLMResult(resp.choices[0].message.content or "", getattr(u, "prompt_tokens", 0) or 0,
                          getattr(u, "completion_tokens", 0) or 0, model, self.name, int((time.monotonic() - t0) * 1000))

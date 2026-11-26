@@ -175,3 +175,17 @@ class SchedulerRun(Base):
     status: Mapped[str] = mapped_column(String(10), default="running")        # running | ok | failed
     result: Mapped[str] = mapped_column(Text, default="")
     error: Mapped[str] = mapped_column(Text, default="")
+
+
+class PortfolioTxn(Base):
+    """One buy or sell the user made. Positions, average cost and profit are always derived from these rows."""
+    __tablename__ = "portfolio_txns"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    side: Mapped[str] = mapped_column(String(4))                    # buy | sell
+    qty: Mapped[float] = mapped_column(Float)
+    price: Mapped[float] = mapped_column(Float)
+    fees: Mapped[float] = mapped_column(Float, default=0.0)         # brokerage, taxes and charges paid on this trade, rupees
+    date: Mapped[str] = mapped_column(String(10), index=True)       # YYYY-MM-DD
+    note: Mapped[str] = mapped_column(Text, default="")
+    created: Mapped[int] = mapped_column(BigInteger, default=0)

@@ -62,19 +62,10 @@ def providers_health(db: Session = Depends(get_session), r: ProviderRouter = Dep
 
 
 @router.get("/symbols/search", response_model=list[SymbolOut])
-def search_symbols(q: str = Query("", max_length=40), limit: int = 10) -> list[SymbolOut]:
-    ql = q.lower().strip()
-    if not ql:
-        return symbol_table()[:limit]
-    scored = []
-    for s in symbol_table():
-        sym, name = s.symbol.lower(), s.name.lower()
-        if sym.startswith(ql):
-            scored.append((0, s))
-        elif ql in sym or ql in name:
-            scored.append((1, s))
-    scored.sort(key=lambda x: (x[0], x[1].symbol))
-    return [s for _, s in scored[:limit]]
+async def search_symbols(q: str = Query("", max_length=60), limit: int = Query(10, ge=1, le=30), live: bool = True) -> list[SymbolOut]:
+    """Search every NSE company by name, short name, symbol or typo; falls back to Yahoo Finance for BSE and new listings."""
+    from app.search import search
+    return [SymbolOut(**r) for r in await search(q, limit, live)]
 
 
 @router.get("/watchlist", response_model=list[str])

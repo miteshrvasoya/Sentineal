@@ -1,8 +1,9 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, type WatchRow } from "@/lib/api";
+import { useMode } from "@/lib/mode";
 
 function Spark({ v, up }: { v: number[]; up: boolean }) {
   if (v.length < 2) return <span className="inline-block h-5 w-16" />;
@@ -17,10 +18,14 @@ const badge = (r: WatchRow) =>
 export default function Watchlist() {
   const params = useParams();
   const active = params.symbol ? decodeURIComponent(String(params.symbol)).toUpperCase() : "";
+  const { mode } = useMode();
+  const simple = mode === "simple";
+  const qc = useQueryClient();
+  const rm = useMutation({ mutationFn: (s: string) => api.watchRemove(s), onSuccess: () => qc.invalidateQueries({ queryKey: ["watchsummary"] }) });
   const wl = useQuery({ queryKey: ["watchsummary"], queryFn: api.watchSummary, refetchInterval: 120_000 });
   return (
     <nav aria-label="Watchlist">
-      <h2 className="mb-2 text-xs font-semibold uppercase text-slate-500">Watchlist</h2>
+      <h2 className="mb-2 text-xs font-semibold uppercase text-slate-500">{simple ? "Stocks I'm watching" : "Watchlist"}</h2>
       {wl.isLoading && <div className="space-y-1">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-8" />)}</div>}
       {wl.error && <p className="text-xs text-red-500">{(wl.error as Error).message}</p>}
       <ul className="space-y-0.5">
@@ -38,12 +43,14 @@ export default function Watchlist() {
                 )}
               </span>
               <Spark v={r.spark} up={(r.change_pct ?? 0) >= 0} />
-              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${badge(r)}`} title={r.label ? `Scorecard: ${r.label} (${r.score})` : "Scorecard: not enough data"} aria-label={r.label ?? "no scorecard"} />
+              {simple && <button onClick={(e) => { e.preventDefault(); rm.mutate(r.symbol); }} aria-label={`Stop watching ${r.symbol}`} title="Stop watching" className="text-slate-400 hover:text-red-600">×</button>}
+              {!simple && <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${badge(r)}`} title={r.label ? `Scorecard: ${r.label} (${r.score})` : "Scorecard: not enough data"} aria-label={r.label ?? "no scorecard"} />}
             </Link>
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-[10px] text-slate-400">Dot = scorecard: green leaning positive, red negative, grey mixed or no data.</p>
+      {simple && wl.data?.length === 0 && <p className="text-xs text-slate-500">Nothing here yet. Search a stock and press Watch.</p>}
+      {!simple && <p className="mt-2 text-[10px] text-slate-400">Dot = scorecard: green leaning positive, red negative, grey mixed or no data.</p>}
     </nav>
   );
 }

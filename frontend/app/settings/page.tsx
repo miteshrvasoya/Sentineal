@@ -79,6 +79,33 @@ function SafetyEval() {
   );
 }
 
+function OpenRouterPanel() {
+  const llm = useQuery({ queryKey: ["llmstatus"], queryFn: api.llmStatus });
+  const [check, setCheck] = useState(false);
+  const or = useQuery({ queryKey: ["ormodels"], queryFn: api.orModels, enabled: check, retry: false });
+  const on = llm.data?.providers?.openrouter;
+  return (
+    <section data-tour="openrouter">
+      <h2 className="mb-2 text-xl font-semibold">AI helper (free with OpenRouter)</h2>
+      <p className={`mb-2 text-sm ${on ? "text-green-700 dark:text-green-400" : "text-amber-600"}`}>{on ? "OpenRouter is connected. The AI explanations are switched on." : "Not connected yet. Everything works without AI; it only adds plain-English explanations."}</p>
+      {!on && (
+        <ol className="mb-2 list-decimal space-y-1 pl-5 text-sm">
+          <li>Make a free account at <a className="text-indigo-600 underline dark:text-indigo-300" href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">openrouter.ai/keys</a> and create a key.</li>
+          <li>In OpenRouter&apos;s privacy settings, allow free models (they are only available if you allow it).</li>
+          <li>Put the key in the <code>.env</code> file as <code>OPENROUTER_API_KEY=your-key</code> and restart the backend.</li>
+        </ol>)}
+      <p className="text-xs text-slate-500">Free models allow roughly 20 requests a minute and 50 a day, which is plenty for explaining a few stocks. Free providers may keep the text you send (only prices, numbers and news headlines, never your holdings or name). The app tries several free models in order, so if one disappears the next is used.</p>
+      <button onClick={() => setCheck(true)} className="mt-2 rounded border border-slate-300 px-3 py-1 text-sm dark:border-slate-700">Which free model is best right now?</button>
+      {or.isFetching && <p className="mt-1 text-sm text-slate-500">Checking OpenRouter…</p>}
+      {or.data && !or.data.ok && <p className="mt-1 text-sm text-amber-600">{or.data.error} Built-in order: {or.data.defaults?.join(", ")}</p>}
+      {or.data?.ok && (
+        <div className="mt-2 text-sm">
+          {or.data.recommended && <p>Best match for this app: <b>{or.data.recommended}</b>. To use it, add <code>OPENROUTER_MODEL={or.data.recommended}</code> to <code>.env</code>. For a real test with your key, run <code>make openrouter-check</code>.</p>}
+          <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs">{or.data.ranked.map((m) => <li key={m.id}><b>{m.id}</b> (score {m.score}): {m.reasons.slice(0, 3).join("; ")}</li>)}</ol></div>)}
+    </section>
+  );
+}
+
 export default function Settings() {
   const llm = useQuery({ queryKey: ["llmstatus"], queryFn: api.llmStatus, refetchInterval: 20_000 });
   const usage = useQuery({ queryKey: ["llmusage"], queryFn: api.llmUsage, refetchInterval: 20_000 });
@@ -88,6 +115,7 @@ export default function Settings() {
   const dq = useQuery({ queryKey: ["dq", go], queryFn: () => api.quality(go) });
   return (
     <div className="space-y-8">
+      <OpenRouterPanel />
       <Scheduler />
       <SafetyEval />
       <section data-tour="providers">
