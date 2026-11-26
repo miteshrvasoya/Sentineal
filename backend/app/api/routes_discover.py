@@ -28,11 +28,12 @@ def popular() -> list[dict[str, str]]:
 
 @router.get("/discover/status")
 def status(db: Session = Depends(get_session)) -> dict:
+    from app.portfolio import holding_symbols
     pop = [p["symbol"] for p in popular()]
     stored = set(db.scalars(select(Price.symbol).where(Price.interval == "1d").group_by(Price.symbol).having(func.count() >= scr.MIN_BARS)))
     funds = set(db.scalars(select(FundamentalsSnapshot.symbol)))
     return {"popular": len(pop), "loaded": len([s for s in pop if s in stored]), "with_company_numbers": len([s for s in pop if s in funds]),
-            "stored_total": len(stored), "enough_to_compare": len(stored) >= 20,
+            "stored_total": len(stored), "holdings_loaded": len([s for s in holding_symbols(db) if s in stored]), "enough_to_compare": len(stored) >= 20,
             "hint": "Rankings compare stocks against each other, so they are only as good as the set of stocks loaded. Press Load more stocks to add about 80 well-known companies."}
 
 
@@ -42,7 +43,8 @@ async def load(db: Session = Depends(get_session), r=Depends(get_router), fprov=
     running = db.scalars(select(JobRecord).where(JobRecord.kind == "discover_load", JobRecord.status.in_(("queued", "running")))).first()
     if running:
         return jobs.job_dict(running)
-    syms = [p["symbol"] for p in popular()]
+    from app.portfolio import holding_symbols
+    syms = list(dict.fromkeys([p["symbol"] for p in popular()] + holding_symbols(db)))      # your own stocks are always included
     jid = jobs.create_job(_session_ctx, "discover_load", "")
 
     async def work(progress):  # type: ignore[no-untyped-def]
@@ -75,7 +77,11 @@ def get_ideas(horizon: str = Query("short", pattern="^(short|long)$"), risk: str
     rows = scr.universe(db)
     if not rows:
         raise HTTPException(404, "No stocks loaded yet. Press Load more stocks first.")
+    from app.portfolio import holding_symbols
+    owned = set(holding_symbols(db))
     out = ideas.top_ideas(db, rows, horizon, limit, risk, sector)
+    for i in out["ideas"]:
+        i["owned"] = i["symbol"] in owned
     out["sectors"] = sorted({r["sector"] for r in rows if r.get("sector")})
     return clean(out)
 
@@ -91,5 +97,24 @@ def stock_view(symbol: str, db: Session = Depends(get_session)) -> dict:
         if row is None:
             raise HTTPException(404, f"Not enough stored price history for {sym} yet (needs about 3 months).")
         row["rs_rank_126"] = row["rs_rank_63"] = None
+    from app.portfolio import holding_symbols
     return clean({"symbol": sym, "short": ideas.assess_row(db, row, "short"), "long": ideas.assess_row(db, row, "long"), "compared_with": len(rows),
-                  "disclaimer": ideas.DISCLAIMER})
+                  "owned": sym in set(holding_symbols(db)), "disclaimer": ideas.DISCLAIMER})
+
+
+@router.get("/discover/holdings")
+def holdings_review(db: Session = Depends(get_session)) -> dict:
+    """How each stock you own scores for the short and the long term, so your own money gets the same scrutiny as new ideas."""
+    from app.portfolio import holding_symbols
+    syms = holding_symbols(db)
+    rows = {x["symbol"]: x for x in scr.universe(db)}
+    out = []
+    for s in syms:
+        row = rows.get(s) or scr.snapshot_row(db, s, "")
+        if row is None:
+            out.append({"symbol": s, "available": False})
+            continue
+        if s not in rows:
+            row["rs_rank_126"] = row["rs_rank_63"] = None
+        out.append({"symbol": s, "available": True, "short": ideas.assess_row(db, row, "short"), "long": ideas.assess_row(db, row, "long")})
+    return clean({"holdings": out, "compared_with": len(rows), "disclaimer": ideas.DISCLAIMER})

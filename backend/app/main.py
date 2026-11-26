@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes import router
 from app.api.routes_backtest import router as backtest_router
+from app.api.routes_broker import router as broker_router
 from app.api.routes_discover import router as discover_router
 from app.api.routes_fund import router as fund_router
 from app.api.routes_llm import router as llm_router
@@ -64,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(scheduler_router)
     app.include_router(portfolio_router)
     app.include_router(discover_router)
+    app.include_router(broker_router)
     return app
 
 

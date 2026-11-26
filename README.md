@@ -26,10 +26,12 @@ Open **Guide** in the app's top bar (or read `docs/GUIDE.md`) for a plain-langua
 ## For beginners
 Open the app and you land on **My investments** in **Simple** view: add what you own, get profit/loss and a plain-English check-up, then try **Find stocks** for short- and long-term ideas and **Learn** for the basics. The **Simple / Advanced** switch (top right) unlocks the professional tools. Take the **Welcome tour** from the Tour button.
 
+**Angel One (optional, read-only):** put your SmartAPI details in `.env` (see the Angel One card in the app) to import your holdings automatically; every screen then includes the stocks you own.
+
 **Free AI explanations:** make a free key at openrouter.ai/keys, put `OPENROUTER_API_KEY=...` in `.env`, restart. `make openrouter-check` ranks the free models available right now and tests them with your key. **Search** covers all ~2,200 NSE stocks (`make refresh-symbols` updates the list).
 
 ## Status
-All planned phases (1 to 10A) are built: data providers with fallback, indicators, market structure, news and sentiment, fundamentals and risk, statistical and machine-learning forecast models with honest walk-forward evaluation, a backtester with Indian costs, a screener with breadth and sector rotation, a scheduler, Alembic migrations, optional AI features (analyst, explainers, chat, plain-English screens, briefing) with guardrails, and a Learn section. Backend tests: 480 passing (`make test`). Deferred extras are in `docs/PLAN.md`.
+All planned phases (1 to 10A) are built: data providers with fallback, indicators, market structure, news and sentiment, fundamentals and risk, statistical and machine-learning forecast models with honest walk-forward evaluation, a backtester with Indian costs, a screener with breadth and sector rotation, a scheduler, Alembic migrations, optional AI features (analyst, explainers, chat, plain-English screens, briefing) with guardrails, and a Learn section. Backend tests: 490 passing (`make test`). Deferred extras are in `docs/PLAN.md`.
 
 Optional extras: `make migrate` (Alembic), `make tour-check` (needs Playwright), a PostgreSQL database in Docker (`make db-up`; only the database runs in Docker, the backend and frontend run locally, and the SQLite default still works with no Docker at all), `SCHEDULER_ENABLED=true` in `.env` for background jobs. AI features need an API key in `.env`; everything else works without one. No live LLM, Yahoo or news provider was reachable during development, so all tests use synthetic data and scripted models.
 

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.routes import _known, get_watchlist, symbol_table
+from app.api.routes import _known, symbol_table
 from app.api.routes_fund import clean
 from app.data import jobs
 from app.data.analysis import close_series, pool_frames, scorecard_for, sentiment_daily
@@ -76,7 +76,8 @@ async def run(symbol: str, body: RunRequest, db: Session = Depends(get_session))
         if sd is not None:
             aux["sentiment"] = sd
     if "pool" in needs:
-        aux["pool"] = pool_frames(db, sym, get_watchlist(db))
+        from app.portfolio import tracked_symbols
+        aux["pool"] = pool_frames(db, sym, tracked_symbols(db))
     reasons = {m: _precheck(m, aux) for m in chosen}
     if all(reasons.values()):
         raise HTTPException(422, "None of the selected models can run: " + "; ".join(f"{m}: {w}" for m, w in reasons.items()))

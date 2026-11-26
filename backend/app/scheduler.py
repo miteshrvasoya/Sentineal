@@ -154,21 +154,22 @@ def default_jobs(db_factory: Callable) -> list[JobSpec]:  # type: ignore[type-ar
         from app.data.ingest import backfill_many
         from app.deps import get_router
         with db_factory() as db:
-            from app.api.routes import get_watchlist
-            syms = list(dict.fromkeys(get_watchlist(db) + ["NIFTY 50", "INDIA VIX"]))
+            from app.portfolio import tracked_symbols
+            syms = list(dict.fromkeys(tracked_symbols(db) + ["NIFTY 50", "INDIA VIX"]))
             res = await backfill_many(db, get_router(), syms, "1d")
         return {"symbols": len(res), "ok": sum(r["ok"] for r in res), "new_bars": sum(r["new_bars"] for r in res), "failed": [r["symbol"] for r in res if not r["ok"]]}
 
     async def ingest_news() -> dict:
-        from app.api.routes import get_watchlist, symbol_table
+        from app.api.routes import symbol_table
         from app.data.news_ingest import ingest_symbol
         from app.deps import get_news_router
         from app.nlp.entities import get_resolver
         from app.nlp.factory import get_scorer
+        from app.portfolio import tracked_symbols
         names = {x.symbol: x.name for x in symbol_table()}
         out = {"symbols": 0, "fetched": 0, "errors": {}}
         with db_factory() as db:
-            for sym in get_watchlist(db):
+            for sym in tracked_symbols(db):
                 r = await ingest_symbol(db, get_news_router(), get_resolver(), get_scorer(), sym, names.get(sym, sym), 3)
                 out["symbols"] += 1
                 out["fetched"] += r["fetched"]
@@ -176,17 +177,17 @@ def default_jobs(db_factory: Callable) -> list[JobSpec]:  # type: ignore[type-ar
         return out
 
     async def enrich_news() -> dict:
-        from app.api.routes import get_watchlist
         from app.deps import get_llm_router
         from app.llm.tasks.news_enrich import enrich_pending
         from app.nlp.entities import get_resolver
+        from app.portfolio import tracked_symbols
         r = get_llm_router()
         if not r.available("news_enrich"):
             return {"skipped": "no LLM provider configured"}
         done = 0
         stop = None
         with db_factory() as db:
-            for sym in get_watchlist(db):
+            for sym in tracked_symbols(db):
                 o = await enrich_pending(db, r, get_resolver(), sym, 24)
                 done += o["processed"]
                 if o["stopped"]:
@@ -195,14 +196,14 @@ def default_jobs(db_factory: Callable) -> list[JobSpec]:  # type: ignore[type-ar
         return {"processed": done, "stopped": stop}
 
     async def retrain_models() -> dict:
-        from app.api.routes import get_watchlist
         from app.data.prices import apply_adjustment, load_prices
         from app.eval.runner import run_models
         from app.features.pipeline import to_frame
+        from app.portfolio import tracked_symbols
         names = [n.strip() for n in s.scheduler_models.split(",") if n.strip()]
         done, failed = [], {}
         with db_factory() as db:
-            syms = get_watchlist(db)
+            syms = tracked_symbols(db)
             frames = {sym: to_frame(apply_adjustment(p)) for sym in syms if not (p := load_prices(db, sym, "1d")).empty}
         for sym, df in frames.items():
             try:
@@ -211,6 +212,21 @@ def default_jobs(db_factory: Callable) -> list[JobSpec]:  # type: ignore[type-ar
             except Exception as e:  # noqa: BLE001
                 failed[sym] = str(e)[:120]
         return {"models": names, "retrained": done, "failed": failed}
+
+    async def sync_holdings() -> dict:
+        from app import broker
+        from app.api.routes_broker import refresh_holding_data
+        from app.api.routes_fund import get_fund_provider
+        from app.deps import get_angel, get_router
+        from app.portfolio import holding_symbols
+        angel = get_angel()
+        if not angel.is_configured():
+            return {"skipped": "Angel One is not connected"}
+        with db_factory() as db:
+            res = await broker.sync(db, angel)
+            if res.get("ok"):
+                res["data"] = await refresh_holding_data(db, holding_symbols(db), get_router(), get_fund_provider())
+        return res
 
     async def daily_briefing() -> dict:
         from app.deps import get_llm_router
@@ -229,6 +245,7 @@ def default_jobs(db_factory: Callable) -> list[JobSpec]:  # type: ignore[type-ar
         JobSpec("refresh_prices", "Refresh prices", "Fetch new daily bars for the watchlist and indices.", "after_close", refresh_prices),
         JobSpec("ingest_news", "Fetch news", "Pull the last 3 days of news for each watchlist stock and score it locally.", "every:180", ingest_news),
         JobSpec("enrich_news", "AI-enrich news", "Classify new articles with the LLM (skipped without a provider; respects the daily budget).", "every:360", enrich_news),
+        JobSpec("sync_holdings", "Sync my Angel One holdings", "Read your holdings from Angel One (read-only), then refresh prices for them. Skipped until Angel One is connected.", "every:120", sync_holdings),
         JobSpec("daily_briefing", "Daily briefing", "Write the AI market briefing from the day's computed facts (skipped without an LLM provider).", "after_close", daily_briefing),
         JobSpec("retrain_models", "Retrain models", "Re-run the chosen models and their walk-forward test on each watchlist stock; adds a registry version.", "after_close",
                 retrain_models, enabled=s.scheduler_retrain),

@@ -113,6 +113,16 @@ def t_compare(db: Session, a: dict[str, Any]) -> dict[str, Any]:
     return {"stocks": out}
 
 
+def t_portfolio(db: Session, a: dict[str, Any]) -> dict[str, Any]:
+    from app import portfolio as pf
+    p = pf.summarize(db)
+    if p["empty"]:
+        raise ToolError("the user has not added any holdings yet")
+    keep = ("symbol", "sector", "qty", "avg_cost", "price", "value", "pl", "pl_pct", "weight", "day_change_pct", "source")
+    return {"summary": p["summary"], "positions": [{k: r.get(k) for k in keep} for r in p["positions"][:25]], "by_sector": p["allocation"]["by_sector"][:8],
+            "checkup": [{"level": c["level"], "title": c["title"]} for c in p["checkup"][:8]]}
+
+
 TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("symbol_facts", "Computed facts about one stock: returns, 52-week range, volatility, risk metrics, scorecard, fundamentals, sentiment, model verdicts.", '{"symbol": "RELIANCE"}', t_symbol_facts),
     Tool("red_flags", "Rule-based warning signs for one stock (drawdown, leverage, losses, volatility spike, stale data, negative news).", '{"symbol": "RELIANCE"}', t_red_flags),
@@ -122,6 +132,7 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("sectors", "Median returns and ranks by sector, with rotation.", "{}", t_sectors),
     Tool("model_summary", "Stored forecasting-model verdicts and probabilities for one stock.", '{"symbol": "TCS", "horizon": 5}', t_models),
     Tool("headlines", "Latest stored news headlines for one stock (untrusted text).", '{"symbol": "INFY"}', t_headlines),
+    Tool("my_portfolio", "The user's own holdings: value, profit or loss, share of the portfolio by stock and industry, and the check-up observations.", "{}", t_portfolio),
     Tool("compare", "Side-by-side price facts for 2 to 4 stocks.", '{"symbols": ["TCS", "INFY"]}', t_compare),
 ]}
 

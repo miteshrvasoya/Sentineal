@@ -3,10 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { MultiLine } from "@/components/ModelCharts";
+import AngelOneCard from "@/components/AngelOneCard";
+import InteractiveChart, { type Marker } from "@/components/InteractiveChart";
 import SearchBox from "@/components/SearchBox";
 import Term from "@/components/Term";
-import { api, type PfTxnIn, type Portfolio } from "@/lib/api";
+import { api, type Idea, type PfTxnIn, type Portfolio } from "@/lib/api";
 import { inr, inrShort, pct0, pctS, today, tone } from "@/lib/format";
 
 const card = "rounded-lg border border-slate-200 p-4 dark:border-slate-800";
@@ -95,7 +96,12 @@ function BulkImport({ onDone }: { onDone: () => void }) {
 function Dashboard({ p }: { p: Portfolio }) {
   const s = p.summary;
   const hist = useQuery({ queryKey: ["pfhist"], queryFn: api.pfHistory });
-  const pts = hist.data?.points ?? [];
+  const [days, setDays] = useState(100000);
+  const txq = useQuery({ queryKey: ["pftx"], queryFn: api.pfTxns, retry: false });
+  const all = hist.data?.points ?? [];
+  const cutoff = days >= 100000 || !all.length ? "" : new Date(new Date(all[all.length - 1].date).getTime() - days * 864e5).toISOString().slice(0, 10);
+  const pts = all.filter((x) => x.date >= cutoff);
+  const markers: Marker[] = (txq.data ?? []).map((t) => ({ date: t.date, kind: t.side, label: t.symbol, detail: `${t.qty} ${t.symbol} at ${inr(t.price, 2)}` }));
   const flagged = new Map<string, "high" | "medium">();
   p.checkup.forEach((c) => c.symbols.forEach((x) => { if (c.level === "high" || (c.level === "medium" && flagged.get(x) !== "high")) flagged.set(x, c.level as "high" | "medium"); }));
   return (
@@ -121,12 +127,13 @@ function Dashboard({ p }: { p: Portfolio }) {
           <p className="mt-2 text-xs text-slate-500">These are observations about how your money is spread, not instructions. What is right depends on your goals and how much risk you can accept.</p>
         </section>)}
 
-      {pts.length > 1 && (
+      {all.length > 1 && (
         <section data-tour="pf-chart" className={card}>
-          <h2 className="mb-1 text-lg font-semibold">How your money has grown</h2>
-          <MultiLine series={[{ name: "Worth today", color: "#6366f1", points: pts.map((x) => ({ date: x.date, v: x.value })) }, { name: "Money you put in", color: "#64748b", dashed: true, points: pts.map((x) => ({ date: x.date, v: x.put_in })) }]}
-            label="Portfolio value and money put in" fmt={(v) => inrShort(v)} />
-          <p className="text-xs text-slate-500">When the purple line is above the dashed grey line you are in profit. {hist.data?.note}</p>
+          <div className="mb-1 flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">How your money has grown</h2>
+            <span className="ml-auto flex gap-1 text-xs">{([["3M", 92], ["6M", 183], ["1Y", 365], ["All", 100000]] as const).map(([l, d]) => <button key={l} onClick={() => setDays(d)} aria-pressed={days === d} className={`rounded px-2 py-0.5 ${days === d ? "bg-indigo-600 text-white" : "bg-slate-200 dark:bg-slate-800"}`}>{l}</button>)}</span></div>
+          {pts.length > 1 && <InteractiveChart series={[{ name: "Worth today", color: "#6366f1", area: true, points: pts.map((x) => ({ date: x.date, v: x.value })) }, { name: "Money you put in", color: "#64748b", dashed: true, points: pts.map((x) => ({ date: x.date, v: x.put_in })) }]}
+            markers={markers} fmt={(v) => inrShort(v)} label="Portfolio value and money put in" valueName="Worth" />}
+          <p className="text-xs text-slate-500">When the purple line is above the dashed grey line you are in profit. Hover to read any day; green and red triangles are your purchases and sales. {hist.data?.note}</p>
         </section>)}
 
       <section data-tour="pf-holdings" className={card}>
@@ -136,7 +143,8 @@ function Dashboard({ p }: { p: Portfolio }) {
           <tbody>{p.positions.map((r) => (
             <tr key={r.symbol} className="border-t border-slate-200 dark:border-slate-800">
               <td className="py-1.5"><Link href={`/s/${r.symbol}`} className="font-medium text-indigo-600 hover:underline dark:text-indigo-300">{r.symbol}</Link>
-                {flagged.has(r.symbol) && <span title="See the check-up above" className="ml-1">⚠️</span>}<div className="max-w-[14rem] truncate text-xs text-slate-500">{r.name}</div></td>
+                {flagged.has(r.symbol) && <span title="See the check-up above" className="ml-1">⚠️</span>}
+                {r.source === "angelone" && <span title="Imported from Angel One. No purchase date is known." className="ml-1 rounded bg-sky-100 px-1 text-[10px] text-sky-800 dark:bg-sky-950 dark:text-sky-300">Angel One</span>}<div className="max-w-[14rem] truncate text-xs text-slate-500">{r.name}</div></td>
               <td>{r.qty.toLocaleString("en-IN", { maximumFractionDigits: 4 })}</td><td>{inr(r.avg_cost, 2)}</td><td>{r.price === null ? "n/a" : inr(r.price, 2)}</td><td>{inr(r.value)}</td>
               <td className={tone(r.pl)}>{r.pl === undefined ? "n/a" : `${r.pl >= 0 ? "+" : ""}${inr(r.pl)}`}<div className="text-xs">{pctS(r.pl_pct)}</div></td>
               <td className={tone(r.day_change_pct)}>{pctS(r.day_change_pct, 2)}</td>
@@ -169,15 +177,37 @@ function History() {
   );
 }
 
+const chip = { "Looks strong": "bg-green-600", Mixed: "bg-amber-500", "Looks weak": "bg-red-600", "Not enough data": "bg-slate-400" } as Record<string, string>;
+const Chip = ({ i }: { i?: Idea }) => (i ? <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs text-white ${chip[i.label] ?? chip["Not enough data"]}`}>{i.label}</span> : <span className="text-xs text-slate-400">n/a</span>);
+
+/** The stocks you own get the same scrutiny as new ideas. */
+function HoldingsReview() {
+  const q = useQuery({ queryKey: ["holdreview"], queryFn: api.holdingsReview, retry: false });
+  if (!q.data?.holdings.length) return null;
+  return (
+    <section data-tour="pf-review" className={card}>
+      <h2 className="mb-1 text-lg font-semibold">How the stocks you own look right now</h2>
+      <p className="mb-2 text-xs text-slate-500">The same checklists used on Find stocks, applied to your own holdings. A weak label is a prompt to look closer, not a reason to sell.</p>
+      <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="text-left text-xs text-slate-500"><tr><th>Stock</th><th>Short term</th><th>Long term</th><th>Worth a look</th></tr></thead>
+        <tbody>{q.data.holdings.map((h) => (
+          <tr key={h.symbol} className="border-t border-slate-200 align-top dark:border-slate-800">
+            <td className="py-1.5"><Link href={`/s/${h.symbol}`} className="font-medium text-indigo-600 hover:underline dark:text-indigo-300">{h.symbol}</Link></td>
+            <td><Chip i={h.short} /></td><td><Chip i={h.long} /></td>
+            <td className="text-xs text-slate-600 dark:text-slate-400">{h.available ? ((h.short?.watch_out[0] ?? h.long?.watch_out[0]) ?? "Nothing flagged") : "Prices not loaded yet. Press Refresh prices."}</td></tr>))}</tbody></table></div>
+    </section>
+  );
+}
+
 function Welcome() {
   return (
     <section className={`${card} space-y-3`} data-tour="pf-welcome">
       <h2 className="text-xl font-semibold">Welcome 👋 Let&apos;s track your investments</h2>
       <p className="text-sm text-slate-600 dark:text-slate-400">This is a place to see what you own, how it is doing, and to look for new ideas. It does not buy or sell anything: it only reads prices and does the sums. Start with whichever fits you:</p>
-      <ol className="grid gap-3 sm:grid-cols-3 text-sm">
+      <ol className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <li className="rounded border border-slate-200 p-3 dark:border-slate-800"><b>1. I already own stocks</b><br />Add them below (what you bought, how many, at what price, when). You will see profit, loss and a health check of how your money is spread.</li>
         <li className="rounded border border-slate-200 p-3 dark:border-slate-800"><b>2. I want ideas</b><br />Go to <Link className="text-indigo-600 underline dark:text-indigo-300" href="/discover">Find stocks</Link> for short-term and long-term ideas, each explained in plain words with the risks.</li>
-        <li className="rounded border border-slate-200 p-3 dark:border-slate-800"><b>3. I am brand new</b><br />Read <Link className="text-indigo-600 underline dark:text-indigo-300" href="/learn">Learn</Link>, starting with the basics, then take the Tour (top right).</li>
+        <li className="rounded border border-slate-200 p-3 dark:border-slate-800"><b>3. I use Angel One</b><br />Connect it (read-only) and your holdings are imported automatically. Set it up with the Angel One card below.</li>
+        <li className="rounded border border-slate-200 p-3 dark:border-slate-800"><b>4. I am brand new</b><br />Read <Link className="text-indigo-600 underline dark:text-indigo-300" href="/learn">Learn</Link>, starting with the basics, then take the Tour (top right).</li>
       </ol>
     </section>
   );
@@ -205,6 +235,8 @@ function Home() {
       {pf.error && <p role="alert" className="text-sm text-red-600">{(pf.error as Error).message}</p>}
       {pf.data?.empty && <Welcome />}
       {pf.data && !pf.data.empty && <Dashboard p={pf.data} />}
+      {pf.data && !pf.data.empty && <HoldingsReview />}
+      {pf.data && <AngelOneCard compact={!pf.data.empty} onlyCount={pf.data.broker?.only.length ?? 0} />}
       {pf.data && <AddForm prefill={prefill} onDone={changed} />}
       <History />
       <p className="text-xs text-slate-500">Educational tool, not investment advice. Prices come from free public sources and can be delayed or wrong; check your broker for the real numbers. Profit and loss use the average price you paid; taxes are not included.</p>

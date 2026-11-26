@@ -15,7 +15,7 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.data.models import PortfolioTxn
+from app.data.models import BrokerHolding, PortfolioTxn
 
 EPS = 1e-9
 
@@ -128,24 +128,71 @@ def _names(symbols: list[str]) -> dict[str, str]:
     return {s: u.get(s, s) for s in symbols}
 
 
+def holding_symbols(db: Session) -> list[str]:
+    """Everything you currently own: shares from your own records plus the broker snapshot."""
+    pos = replay(list(db.scalars(select(PortfolioTxn))))
+    syms = {s for s, p in pos.items() if p.qty > EPS} | {b.symbol for b in db.scalars(select(BrokerHolding))}
+    return sorted(syms)
+
+
+def tracked_symbols(db: Session) -> list[str]:
+    """Stocks the app should keep fresh and include in every calculation: your watchlist plus everything you own."""
+    from app.api.routes import get_watchlist
+    return list(dict.fromkeys(get_watchlist(db) + holding_symbols(db)))
+
+
+def broker_only(db: Session, txns: list[PortfolioTxn] | None = None) -> list[BrokerHolding]:
+    """Broker holdings for stocks that have NO entries in your own records (so they have no purchase date)."""
+    txns = list(db.scalars(select(PortfolioTxn))) if txns is None else txns
+    have = {t.symbol for t in txns}
+    return [b for b in db.scalars(select(BrokerHolding)) if b.symbol not in have]
+
+
+def adopt_broker(db: Session, on: str) -> int:
+    """Turn broker-only holdings into purchases in your own records, dated `on` (the real purchase date is unknown to the broker feed)."""
+    import time
+    items = [PortfolioTxn(symbol=b.symbol, side="buy", qty=b.qty, price=b.avg_price, fees=0.0, date=on, note="From Angel One holdings (purchase date is approximate)",
+                          created=int(time.time())) for b in broker_only(db)]
+    validate_new(list(db.scalars(select(PortfolioTxn))), items)
+    db.add_all(items)
+    db.commit()
+    return len(items)
+
+
 def summarize(db: Session) -> dict[str, Any]:
     txns = list(db.scalars(select(PortfolioTxn)))
     pos = replay(txns)
-    open_syms = sorted(s for s, p in pos.items() if p.qty > EPS)
-    prices = _last_prices(db, sorted(pos))
-    sectors, names = _sectors(sorted(pos)), _names(sorted(pos))
+    ledger_open = sorted(s for s, p in pos.items() if p.qty > EPS)
+    bro = list(db.scalars(select(BrokerHolding)))
+    bonly = {b.symbol: b for b in broker_only(db, txns)}
+    mismatches = []
+    ledger_syms = {t.symbol for t in txns}
+    for b in bro:
+        if b.symbol in ledger_syms:
+            have = pos[b.symbol].qty if b.symbol in pos else 0.0
+            if abs(have - b.qty) > 1e-6:
+                mismatches.append({"symbol": b.symbol, "records_qty": have, "broker_qty": b.qty})
+    all_syms = sorted(set(ledger_open) | set(bonly))
+    prices = _last_prices(db, sorted(set(pos) | set(bonly)))
+    sectors, names = _sectors(sorted(set(pos) | set(bonly))), _names(sorted(set(pos) | set(bonly)))
     today = datetime.now().date()
     rows = []
-    for s in open_syms:
-        p, q = pos[s], prices.get(s)
-        value = p.qty * q["price"] if q else None
-        row: dict[str, Any] = {"symbol": s, "name": names[s], "sector": sectors[s], "qty": p.qty, "avg_cost": p.avg_cost, "invested": p.cost,
-                               "price": q["price"] if q else None, "price_as_of": q["as_of"] if q else None, "value": value, "first_buy": p.first_buy,
-                               "realised": p.realised}
+    for s in all_syms:
+        if s in bonly:
+            b = bonly[s]
+            qty, cost, realised, first, src = b.qty, b.qty * b.avg_price, 0.0, None, "angelone"
+        else:
+            p = pos[s]
+            qty, cost, realised, first, src = p.qty, p.cost, p.realised, p.first_buy, "records"
+        q = prices.get(s)
+        value = qty * q["price"] if q else None
+        row: dict[str, Any] = {"symbol": s, "name": names[s], "sector": sectors[s], "qty": qty, "avg_cost": cost / qty if qty > EPS else 0.0, "invested": cost,
+                               "price": q["price"] if q else None, "price_as_of": q["as_of"] if q else None, "value": value, "first_buy": first,
+                               "realised": realised, "source": src, "needs_date": src == "angelone"}
         if q:
-            row["pl"] = value - p.cost
-            row["pl_pct"] = (value - p.cost) / p.cost if p.cost > EPS else None
-            row["day_change"] = p.qty * (q["price"] - q["prev"])
+            row["pl"] = value - cost
+            row["pl_pct"] = (value - cost) / cost if cost > EPS else None
+            row["day_change"] = qty * (q["price"] - q["prev"])
             row["day_change_pct"] = q["price"] / q["prev"] - 1 if q["prev"] else None
             row["stale_days"] = (today - date.fromisoformat(q["as_of"])).days
         else:
@@ -163,21 +210,28 @@ def summarize(db: Session) -> dict[str, Any]:
     for t in txns:
         d = date.fromisoformat(t.date)
         flows.append((d, -(t.qty * t.price + t.fees) if t.side == "buy" else (t.qty * t.price - t.fees)))
+    ledger_value = sum(r["value"] for r in valued if r["source"] == "records")
     span_days = (today - min((d for d, _ in flows), default=today)).days
-    rate = xirr(flows + [(today, value)]) if value > EPS and span_days >= 90 else None
+    rate = xirr(flows + [(today, ledger_value)]) if ledger_value > EPS and span_days >= 90 else None
+    note = None
+    if rate is None:
+        note = "Needs at least 3 months of history to be meaningful." if span_days < 90 else None
+    if bonly:
+        note = ((note + " ") if note else "") + "The yearly return covers only the trades you entered with dates; Angel One holdings carry no purchase dates."
     by_sector: dict[str, float] = defaultdict(float)
     for r in valued:
         by_sector[r["sector"]] += r["value"]
-    closed = [{"symbol": s, "name": names[s], "realised": p.realised, "bought": p.bought, "sold": p.sold} for s, p in sorted(pos.items()) if p.qty <= EPS and p.bought > 0]
+    allnames = _names(sorted(pos))
+    closed = [{"symbol": s, "name": allnames[s], "realised": p.realised, "bought": p.bought, "sold": p.sold} for s, p in sorted(pos.items()) if p.qty <= EPS and p.bought > 0]
     out = {
-        "empty": not txns,
+        "empty": not txns and not bro,
         "summary": {"value": value, "invested": invested, "pl": value - invested_valued, "pl_pct": (value - invested_valued) / invested_valued if invested_valued > EPS else None,
                     "realised": realised, "total_pl": value - invested_valued + realised, "day_change": day, "day_change_pct": day / (value - day) if value - day > EPS else None,
-                    "annual_return": rate, "annual_return_note": None if rate is not None else ("Needs at least 3 months of history to be meaningful." if span_days < 90 else None),
-                    "holdings": len(open_syms), "unpriced": [r["symbol"] for r in rows if r["value"] is None]},
+                    "annual_return": rate, "annual_return_note": note, "holdings": len(all_syms), "unpriced": [r["symbol"] for r in rows if r["value"] is None]},
         "positions": sorted(rows, key=lambda r: -(r["value"] or 0)),
         "allocation": {"by_sector": sorted(({"sector": k, "weight": v / value, "value": v} for k, v in by_sector.items()), key=lambda x: -x["weight"]) if value > EPS else []},
         "closed": closed,
+        "broker": {"connected": bool(bro), "synced_at": max((b.synced_at for b in bro), default=None), "count": len(bro), "only": sorted(bonly), "mismatches": mismatches},
     }
     out["checkup"] = checkup(db, out)
     return out
@@ -210,6 +264,14 @@ def checkup(db: Session, summ: dict[str, Any]) -> list[dict[str, Any]]:
     if losers:
         add("medium", f"{len(losers)} holding{'s are' if len(losers) > 1 else ' is'} down more than 25%", "Review why you bought: has the reason changed, or is it a temporary dip? " +
             "Selling only to avoid a loss, or holding only to avoid admitting one, are both common mistakes.", [r["symbol"] for r in losers])
+    for m in summ.get("broker", {}).get("mismatches", []):
+        add("medium", f"Your records and Angel One disagree about {m['symbol']}", f"Your records say {m['records_qty']:g} shares, Angel One says {m['broker_qty']:g}. "
+            "Check for a missing purchase or sale in your records (or a trade made after the last sync).", [m["symbol"]])
+    nodate = [r["symbol"] for r in rows if r.get("needs_date")]
+    if nodate:
+        add("info", f"{len(nodate)} holding{'s' if len(nodate) > 1 else ''} imported from Angel One without purchase dates",
+            "Their profit and loss is correct, but they are left out of the yearly return and the growth chart because no purchase date is known. "
+            "Press 'Save in my records' on the Angel One card to add them with a date you choose.", nodate)
     stale = [r for r in rows if r.get("stale_days") is not None and r["stale_days"] > 5]
     if stale:
         add("info", "Some prices are out of date", "Press Refresh prices. Until then the value shown for " + ", ".join(r["symbol"] for r in stale[:4]) + " is not current.", [r["symbol"] for r in stale])

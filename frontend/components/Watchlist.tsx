@@ -34,7 +34,7 @@ export default function Watchlist() {
             <Link href={`/s/${encodeURIComponent(r.symbol)}`}
               className={`flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-800 ${r.symbol === active ? "bg-indigo-100 font-semibold dark:bg-indigo-950" : ""}`}>
               <span className="min-w-0 flex-1">
-                <span className="block truncate">{r.symbol}</span>
+                <span className="block truncate">{r.symbol}{r.held && <span title="You own this" className="ml-1 rounded bg-sky-100 px-1 text-[9px] text-sky-800 dark:bg-sky-950 dark:text-sky-300">owned</span>}</span>
                 {r.last !== null && (
                   <span className="block text-[11px] tabular-nums text-slate-500">
                     {r.last.toLocaleString("en-IN")}{" "}

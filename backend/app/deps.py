@@ -16,9 +16,15 @@ def _session_ctx():  # type: ignore[no-untyped-def]
 
 
 @lru_cache
+def get_angel() -> AngelOneProvider:
+    """One Angel One client for the whole app, so its login session is shared by prices and holdings."""
+    return AngelOneProvider()
+
+
+@lru_cache
 def get_router() -> ProviderRouter:
     # Priority order. Angel One (Phase 2) is inserted ahead of Yahoo when configured.
-    providers = [AngelOneProvider(), YahooProvider()]  # AngelOne skipped unless configured
+    providers = [get_angel(), YahooProvider()]  # AngelOne skipped unless configured
     return ProviderRouter(
         providers,
         on_success=lambda n: record_health(_session_ctx, n, None),

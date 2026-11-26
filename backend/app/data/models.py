@@ -189,3 +189,16 @@ class PortfolioTxn(Base):
     date: Mapped[str] = mapped_column(String(10), index=True)       # YYYY-MM-DD
     note: Mapped[str] = mapped_column(Text, default="")
     created: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class BrokerHolding(Base):
+    """Latest snapshot of what a broker says you hold (read-only import). Replaced wholesale on every sync."""
+    __tablename__ = "broker_holdings"
+    source: Mapped[str] = mapped_column(String(16), primary_key=True)        # angelone
+    symbol: Mapped[str] = mapped_column(String(32), primary_key=True)
+    exchange: Mapped[str] = mapped_column(String(8), default="NSE")
+    isin: Mapped[str] = mapped_column(String(16), default="")
+    qty: Mapped[float] = mapped_column(Float)
+    avg_price: Mapped[float] = mapped_column(Float)
+    ltp: Mapped[float | None] = mapped_column(Float, nullable=True)         # broker's last traded price at sync time
+    synced_at: Mapped[int] = mapped_column(BigInteger, default=0)

@@ -30,7 +30,21 @@ const NOTE = "Appears after you run a screen.";
 
 const RAW_TOURS: TourDef[] = [
   {
-    id: "phase-11", phase: "Phase 11", title: "Welcome: track your money and find ideas", isNew: true, simple: true,
+    id: "phase-12", phase: "Phase 12", title: "Angel One, your stocks everywhere, and the interactive chart", isNew: true, simple: true,
+    blurb: "Import your holdings from Angel One (read-only), see every screen include the stocks you own, and explore prices with a chart you can hover, drag and zoom.",
+    steps: [
+      { title: "Your own stocks, in everything", body: "Three upgrades. You can connect Angel One so your holdings import themselves. Every calculation now includes the stocks you own, not just the ones you search for. And the price chart is interactive.\n\nThe Angel One connection is read-only: the app has no code that can place an order." },
+      { route: "/", target: "angel-card", title: "Connect Angel One (read-only)", body: "Until you add your SmartAPI details to the .env file this card shows the steps. Once connected, press 'Sync my holdings' to import everything you hold in your Angel One demat account. Angel One also becomes the first source for prices, with Yahoo Finance as backup.\n\nImported holdings have no purchase dates, so the card lets you save them into your own records with a date you choose; until then they count toward value and profit but not the yearly return." },
+      { route: "/", target: "pf-review", title: "Your stocks get the same scrutiny", body: "Each stock you own is scored with the same checklists as the ideas on Find stocks, for the short and long term, plus the first thing worth looking into. Prices, company financials, news and warning signs are fetched for your stocks automatically, and the briefing, red flags, scheduler and chat assistant all include them.", note: "Appears after you add or import holdings." },
+      { route: "/", target: "pf-chart", title: "A chart you can explore", body: "Move over it to read any day's value. Drag across it to measure the change between two dates. Arrow keys work too, and the range buttons zoom to 3 months, 6 months, a year or everything. Green and red triangles are your purchases and sales.", note: "Appears after you add your first purchase." },
+      { route: "/s/{symbol}", target: "stock-chart", title: "The stock chart", body: "Same controls: hover for the exact price and how much it moved since the start of the period, drag to measure any stretch, pick a range from 1 month to 5 years, and tick 'Show trend lines' for the 50- and 200-day averages. If you own the stock, your average buy price shows as a line and your trades as markers.", note: "Appears once prices have loaded." },
+      { route: "/discover", target: "disc-ideas", title: "'You own this' tags", body: "Ideas and watchlist entries for stocks you hold carry an 'owned' tag, so you can tell a new idea from something you already have.", note: "Appears once stocks are loaded." },
+      { route: "/settings", target: "angel-card", title: "Settings", body: "The same Angel One card lives here. There is also a scheduler job that can re-sync your holdings every couple of hours (switch the scheduler on in .env)." },
+      { title: "That is Phase 12", body: "Add your Angel One details when you are ready; nothing breaks without them. Remember that every number comes from free public sources or your broker feed and can be delayed. Always confirm with your broker." },
+    ],
+  },
+  {
+    id: "phase-11", phase: "Phase 11", title: "Welcome: track your money and find ideas", simple: true,
     blurb: "A beginner-friendly start: record what you own, see profit and loss, get a check-up, and find stocks to research, all in plain English.",
     steps: [
       { title: "Welcome", body: "This app helps you do three things: keep track of the stocks you own, look for new stocks to research (for the short or the long term), and learn how investing works.\n\nIt never buys or sells anything for you; it only reads public prices and does the sums. Nothing here is advice. This tour takes about two minutes." },

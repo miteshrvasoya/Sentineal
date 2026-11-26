@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend test seed lint install tour-check migrate db-up db-down db-reset db-psql db-import openrouter-check refresh-symbols
+.PHONY: dev backend frontend test seed lint install tour-check chart-check migrate db-up db-down db-reset db-psql db-import openrouter-check refresh-symbols
 install:
 	cd backend && uv sync
 	cd frontend && npm install --no-audit --no-fund
@@ -40,3 +40,6 @@ openrouter-check:
 
 refresh-symbols:
 	cd backend && uv run python scripts/refresh_symbols.py
+
+chart-check:
+	cd frontend && node e2e/chart-check.cjs

@@ -27,6 +27,7 @@ export default function IdeaCard({ i, name, onWatch, watching }: { i: Idea; name
         <Link href={`/s/${i.symbol}`} className="text-lg font-semibold text-indigo-600 hover:underline dark:text-indigo-300">{i.symbol}</Link>
         {name && <span className="text-sm text-slate-500">{name}</span>}
         <span className={`rounded px-2 py-0.5 text-xs font-medium ${chip[i.label] ?? chip["Not enough data"]}`}>{i.label}</span>
+        {i.owned && <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-800 dark:bg-sky-950 dark:text-sky-300">You own this</span>}
         <ScoreBar score={i.score} />
         <span className="ml-auto text-xs">Ups and downs: <b className={riskTone[i.risk]}><Term k="volatility">{i.risk}</Term></b></span>
       </header>

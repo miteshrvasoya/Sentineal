@@ -178,7 +178,8 @@ async def ingest_backfill(symbols: list[str] | None = None, interval: str = "1d"
     """Incremental backfill (default: the watchlist). Stores everything fetched."""
     if interval not in INTERVALS:
         raise HTTPException(422, f"interval must be one of {list(INTERVALS)}")
-    syms = [_known(s) for s in symbols] if symbols else get_watchlist(db)
+    from app.portfolio import tracked_symbols
+    syms = [_known(s) for s in symbols] if symbols else tracked_symbols(db)
     return await backfill_many(db, r, syms, interval)
 
 

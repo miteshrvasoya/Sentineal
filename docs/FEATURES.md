@@ -123,3 +123,7 @@ Endpoints: `POST /ai/analyst/{symbol}`, `POST /ai/explain-model/{symbol}`, `POST
 ## Phase 11: beginner mode (`app/portfolio.py`, `app/ideas.py`, `app/search.py`, `app/llm/openrouter.py`)
 
 `GET/POST/DELETE /portfolio...` (transactions, summary, history, refresh), `GET /discover/ideas`, `GET /discover/stock/{symbol}`, `GET /discover/status`, `POST /discover/load`, `GET /symbols/search` (whole NSE list + live lookup), `GET /llm/openrouter/models`. Frontend: `/` (My investments), `/discover`, plain-English `/s/{symbol}` in Simple mode, `components/Term.tsx` jargon tooltips, `lib/mode.tsx`. Data: `data/nse_equities.csv`, `popular.csv`, `search_aliases.csv`. Scripts: `make openrouter-check`, `make refresh-symbols`. Migration 0002 adds `portfolio_txns`.
+
+## Phase 12: Angel One holdings, owned stocks everywhere, interactive chart (`app/broker.py`, `app/providers/angelone.py`, `components/InteractiveChart.tsx`)
+
+`GET /broker/angelone/status`, `POST /broker/angelone/sync`, `POST /broker/angelone/adopt`, `GET /discover/holdings`; `tracked_symbols` / `holding_symbols` in `app/portfolio.py`; `sync_holdings` scheduler job; chat tool `my_portfolio`; `owned` flags on watchlist summary and ideas. Migration 0003 adds `broker_holdings`. `make chart-check` drives the interactive chart in a browser.

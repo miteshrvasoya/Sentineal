@@ -5,7 +5,7 @@ import { useState } from "react";
 import { AiFooter, AiStatus, ClaimList, FactsDisclosure } from "@/components/AiParts";
 import { ScoreBar } from "@/components/IdeaCard";
 import RedFlagList from "@/components/RedFlagList";
-import SvgLine from "@/components/SvgLine";
+import InteractiveChart, { type ChartSeries, type HLine, type Marker } from "@/components/InteractiveChart";
 import SymbolTabs from "@/components/SymbolTabs";
 import Term from "@/components/Term";
 import { api, type Idea } from "@/lib/api";
@@ -13,7 +13,9 @@ import { inr, pct0, pctS, tone } from "@/lib/format";
 import { useMode } from "@/lib/mode";
 
 const card = "rounded-lg border border-slate-200 p-4 dark:border-slate-800";
-const RANGES = [["3M", 63], ["6M", 126], ["1Y", 252], ["5Y", 1260]] as const;
+const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["3Y", 756], ["5Y", 1260], ["All", 100000]] as const;
+const iso = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
+function sma(c: number[], n: number): (number | null)[] { let sum = 0; return c.map((v, i) => { sum += v; if (i >= n) sum -= c[i - n]; return i >= n - 1 ? sum / n : null; }); }
 const chip = { "Looks strong": "bg-green-600", Mixed: "bg-amber-500", "Looks weak": "bg-red-600", "Not enough data": "bg-slate-400" } as Record<string, string>;
 
 function Verdict({ title, sub, i, tour }: { title: string; sub: string; i: Idea; tour: string }) {
@@ -32,12 +34,16 @@ export default function SimpleStock({ symbol }: { symbol: string }) {
   const qc = useQueryClient();
   const { setMode } = useMode();
   const [range, setRange] = useState<number>(252);
+  const [trend, setTrend] = useState(false);
+  const [showTrades, setShowTrades] = useState(true);
   const info = useQuery({ queryKey: ["sym", symbol], queryFn: async () => (await api.search(symbol)).find((s) => s.symbol === symbol) ?? null });
   const quote = useQuery({ queryKey: ["quote", symbol], queryFn: () => api.quote(symbol), refetchInterval: 60_000, retry: false });
   const prices = useQuery({ queryKey: ["prices", symbol, "1d", true], queryFn: () => api.prices(symbol, "1d", true) });
   const view = useQuery({ queryKey: ["stockview", symbol], queryFn: () => api.stockView(symbol), retry: false });
   const flags = useQuery({ queryKey: ["redflags", symbol], queryFn: () => api.redFlags(symbol), retry: false });
   const watched = useQuery({ queryKey: ["watchlist"], queryFn: api.watchlist });
+  const txns = useQuery({ queryKey: ["pftx"], queryFn: api.pfTxns, retry: false });
+  const pfq = useQuery({ queryKey: ["portfolio"], queryFn: api.portfolio, retry: false });
   const isWatched = !!watched.data?.includes(symbol);
   const toggle = useMutation({ mutationFn: () => (isWatched ? api.watchRemove(symbol) : api.watchAdd(symbol)), onSuccess: () => { qc.invalidateQueries({ queryKey: ["watchlist"] }); qc.invalidateQueries({ queryKey: ["watchsummary"] }); } });
   const ai = useMutation({ mutationFn: () => api.aiAnalyst(symbol) });
@@ -45,6 +51,20 @@ export default function SimpleStock({ symbol }: { symbol: string }) {
   const bars = prices.data?.bars ?? [];
   const sel = bars.slice(-range);
   const chg = sel.length > 1 ? sel[sel.length - 1].c / sel[0].c - 1 : null;
+  const hiP = sel.length ? Math.max(...sel.map((b) => b.h)) : null, loP = sel.length ? Math.min(...sel.map((b) => b.l)) : null;
+  const closes = bars.map((b) => b.c);
+  const from = bars.length - sel.length;
+  const chartSeries: ChartSeries[] = [{ name: "Price", color: "#6366f1", area: true, points: sel.map((b) => ({ date: iso(b.t), v: b.c })) }];
+  if (trend) {
+    for (const [n2, color, name] of [[50, "#f59e0b", "50-day average"], [200, "#a855f7", "200-day average"]] as const) {
+      const m = sma(closes, n2);
+      const pts = sel.map((b, i) => ({ date: iso(b.t), v: m[from + i] })).filter((p): p is { date: string; v: number } => p.v !== null);
+      if (pts.length > 1) chartSeries.push({ name, color, dashed: true, thin: true, points: pts });
+    }
+  }
+  const mine = pfq.data?.positions.find((r) => r.symbol === symbol);
+  const hl: HLine[] = mine ? [{ v: mine.avg_cost, label: "You paid (avg)", color: "#0ea5e9" }] : [];
+  const markers: Marker[] = showTrades ? (txns.data ?? []).filter((t) => t.symbol === symbol).map((t) => ({ date: t.date, kind: t.side, label: t.side, detail: `${t.qty} shares at ${inr(t.price, 2)}` })) : [];
   const q = quote.data;
   const last = q?.last ?? (bars.length ? bars[bars.length - 1].c : null);
   const n = view.data?.short.numbers ?? {};
@@ -56,6 +76,7 @@ export default function SimpleStock({ symbol }: { symbol: string }) {
         {info.data && <span className="text-slate-500">{info.data.name}{info.data.sector ? ` · ${info.data.sector}` : ""}</span>}
         {last !== null && <span className="flex items-baseline gap-2 tabular-nums"><span className="text-2xl">{inr(last, 2)}</span>
           {q && <span className={tone(q.change)}>{q.change >= 0 ? "+" : ""}{q.change.toFixed(2)} ({q.change_pct.toFixed(2)}%) today</span>}</span>}
+        {view.data?.owned && <span className="rounded bg-sky-100 px-2 py-0.5 text-xs text-sky-800 dark:bg-sky-950 dark:text-sky-300">You own this</span>}
         <span data-tour="stock-actions" className="ml-auto flex flex-wrap gap-2 text-sm">
           <button onClick={() => toggle.mutate()} disabled={toggle.isPending} className="rounded border border-slate-300 px-3 py-1 dark:border-slate-700">{isWatched ? "✓ Watching" : "☆ Watch"}</button>
           <Link href={`/?add=${symbol}`} className="rounded bg-indigo-600 px-3 py-1 text-white">I own this</Link>
@@ -66,11 +87,21 @@ export default function SimpleStock({ symbol }: { symbol: string }) {
       {prices.isLoading && <div className="skeleton h-48" />}
       {sel.length > 1 && (
         <section data-tour="stock-chart" className={card}>
-          <div className="mb-1 flex flex-wrap items-center gap-2"><h2 className="font-semibold">Price history</h2>
-            <span className={`text-sm tabular-nums ${tone(chg)}`}>{pctS(chg)} over this period</span>
-            <span className="ml-auto flex gap-1 text-xs">{RANGES.map(([l, n2]) => <button key={l} onClick={() => setRange(n2)} aria-pressed={range === n2} className={`rounded px-2 py-0.5 ${range === n2 ? "bg-indigo-600 text-white" : "bg-slate-200 dark:bg-slate-800"}`}>{l}</button>)}</span></div>
-          <SvgLine dates={sel.map((b) => new Date(b.t * 1000).toISOString().slice(0, 10))} values={sel.map((b) => b.c)} area zero={false} height={200} fmt={(v) => inr(v)} label="Price history" />
-          <p className="text-xs text-slate-500">Closing price each day, adjusted for splits and dividends. Past prices say little about future ones.</p>
+          <div className="mb-2 flex flex-wrap items-center gap-2"><h2 className="font-semibold">Price history</h2>
+            <span className="ml-auto flex flex-wrap gap-1 text-xs">{RANGES.map(([l, n2]) => <button key={l} onClick={() => setRange(n2)} aria-pressed={range === n2 || (n2 === 100000 && range >= bars.length)} className={`rounded px-2 py-0.5 ${range === n2 ? "bg-indigo-600 text-white" : "bg-slate-200 dark:bg-slate-800"}`}>{l}</button>)}</span></div>
+          <div className="mb-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <div><div className="text-xs text-slate-500">Latest</div><b className="tabular-nums">{inr(sel[sel.length - 1].c, 2)}</b></div>
+            <div><div className="text-xs text-slate-500">Change over this period</div><b className={`tabular-nums ${tone(chg)}`}>{pctS(chg)}</b></div>
+            <div><div className="text-xs text-slate-500">Highest</div><b className="tabular-nums">{inr(hiP, 2)}</b></div>
+            <div><div className="text-xs text-slate-500">Lowest</div><b className="tabular-nums">{inr(loP, 2)}</b></div>
+          </div>
+          <InteractiveChart series={chartSeries} markers={markers} hlines={hl} fmt={(v) => inr(v, v < 100 ? 2 : 0)} label={`${symbol} price history`} autoColor />
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+            <label className="flex items-center gap-1" title="The average closing price over the last 50 and 200 days. Price above them suggests an uptrend."><input type="checkbox" checked={trend} onChange={(e) => setTrend(e.target.checked)} />Show <Term k="average">trend lines</Term></label>
+            {(txns.data ?? []).some((t) => t.symbol === symbol) && <label className="flex items-center gap-1"><input type="checkbox" checked={showTrades} onChange={(e) => setShowTrades(e.target.checked)} />Show my buys and sells</label>}
+            {mine && <span className="text-sky-700 dark:text-sky-400">You own {mine.qty.toLocaleString("en-IN", { maximumFractionDigits: 4 })} shares, average price {inr(mine.avg_cost, 2)}.</span>}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Closing price each day, adjusted for splits and dividends. Past prices say little about future ones.</p>
         </section>)}
 
       {view.data && (

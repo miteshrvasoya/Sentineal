@@ -10,7 +10,8 @@ This table grows every phase. The newest row is on top.
 
 | Phase | Theme | One-line summary | Status |
 |---|---|---|---|
-| **11** | **Beginner mode, My Investments, Find stocks, full search, OpenRouter** | A Simple view for newcomers: track what you own with profit and loss and a portfolio check-up, plain-English short- and long-term ideas, search across all ~2,200 NSE companies, and free AI explanations through OpenRouter | **NEW** |
+| **12** | **Angel One holdings, my stocks everywhere, interactive chart** | Read-only import of your Angel One holdings, every screen and calculation includes the stocks you own, and a hover/drag/measure price chart with your trades marked | **NEW** |
+| 11 | Beginner mode, My Investments, Find stocks, full search, OpenRouter | A Simple view for newcomers: track what you own with profit and loss and a portfolio check-up, plain-English short- and long-term ideas, search across all ~2,200 NSE companies, and free AI explanations through OpenRouter | done |
 | 10A | Chat, plain-English screener, briefing, red flags | A read-only chat assistant with cited lookups, screens described in words, an AI daily briefing, rule-based red flags and a prompt-injection safety evaluation | **NEW** |
 | 10 | Screener, breadth, scheduler, Learn | Filter all stored stocks by rules, relative-strength ranks, market breadth, sector rotation, optional background jobs, database migrations and 12 lessons for engineers | done |
 | 9 | Backtester with Indian costs and a luck test | Replay four classic trading rules with STT/stamp/GST/slippage, held-out data, a parameter-search penalty, a bootstrap and a random-timing test | done |
@@ -64,7 +65,40 @@ Every phase has an **interactive tour** inside the app, so you can see what it a
 
 ---
 
-## Phase 11: beginner mode, My Investments, Find stocks, full search and OpenRouter (NEW)
+## Phase 12: Angel One holdings, your stocks everywhere, and the interactive chart (NEW)
+
+> **Tour:** open the **Tour** menu and pick "Phase 12". It runs in Simple view.
+
+### What's new
+
+- **Angel One connection (read-only).** Add your SmartAPI details to `.env`, press **Sync my holdings** on the home page (or Settings) and everything in your demat account is imported. Angel One also becomes the first source for prices, with Yahoo Finance as the backup.
+- **Your stocks are included everywhere.** Holdings are fetched (prices and company financials), scored, and fed into the screener's universe, rankings, breadth and sectors, red flags, the daily briefing, news fetching, model retraining, the scheduler and the chat assistant (it can now answer "how is my portfolio?"). Stocks you own carry an **owned** tag in the sidebar and a **You own this** tag on ideas.
+- **How the stocks you own look**: the same short- and long-term checklists as *Find stocks*, applied to your holdings, on the home page.
+- **Interactive chart** on every stock and on your portfolio: hover for exact values, drag to measure a change between two days, arrow keys, range buttons (1M to 5Y and All), optional 50- and 200-day trend lines, your average buy price as a line and your purchases and sales as triangles.
+
+### Try it
+
+1. On the home page open the **Angel One** card and read the setup steps. Nothing breaks until you add your details.
+2. Once connected: **Sync my holdings**, then look at the check-up and *How the stocks you own look*.
+3. Open any stock and move the mouse across the chart; then drag across a stretch to measure it.
+
+### How it works (engineering view)
+
+- **Read-only by construction.** `AngelOneProvider.fetch_holdings` makes one login (API key, client code, PIN and a TOTP code generated from your secret) and one GET to `getAllHolding` (falling back to `getHolding`). A test asserts that no request path contains "order" and that only login is a POST. Your credentials live only in `.env`; they are never logged or sent to the browser.
+- **Snapshot plus ledger.** The broker feed is stored in `broker_holdings`, replaced wholesale on each sync (the sync reports what was added, removed or changed). Your own buy and sell records stay in `portfolio_txns`. The portfolio merges them: **your own records win** for any stock you have entered yourself (a quantity difference is reported as a mismatch in the check-up); a stock that exists only in the broker feed is shown with the broker's average price and a *no purchase date* flag.
+- **Why the date matters.** The yearly return (XIRR) and the growth chart need dated cash flows, so broker-only holdings are left out of them, and the card says so. **Save in my records** converts them into purchases dated with the date you choose (an approximation you control).
+- **Everything uses `tracked_symbols`.** One helper returns the watchlist plus everything you own (records and broker). The scheduler jobs, briefing, red-flag table, watchlist summary, discover loader and pooled-model data all use it, so a stock you own can never be silently missing from a calculation. The `sync_holdings` job re-syncs every two hours when Angel One is connected.
+- **The chart** is a small SVG component with no charting library. Pointer events map the mouse to the nearest trading day by binary search on dates; the tooltip reads every series at that date; drag keeps an anchor index and shades the range; a test script (`make chart-check`) drives a real browser through hover, keyboard, drag, range buttons, trend lines and trade markers. It found two real bugs while being written (a selection that survived a range change and crashed rendering, and a drag that was reset by an unrelated re-render).
+
+### How far to trust it
+
+- **I could not test against the real Angel One service**: there are no credentials here and the endpoint is not reachable from the build sandbox. The client follows the published SmartAPI holdings format and is tested with a simulated server. The first real sync may reveal a field I mapped slightly differently; if so, the message on the card will say what Angel One returned.
+- Holdings come from the demat account (delivery holdings). Intraday and derivative positions are not imported.
+- BSE-only holdings are imported on a best-effort basis (symbol plus `.BO`) and may not find prices.
+- Imported holdings use the broker's **average price**, which for shares received through bonuses or splits may differ from what you would calculate; always confirm with your broker.
+- Prices, financials and ideas come from free public sources and can be delayed or wrong. Nothing here is advice.
+
+## Phase 11: beginner mode, My Investments, Find stocks, full search and OpenRouter
 
 > **Tour:** open the **Tour** menu and pick "Phase 11: Welcome". It switches to Simple view for you and walks through everything below.
 

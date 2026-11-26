@@ -77,8 +77,8 @@ class Briefing(BaseModel):
 
 def briefing_pack(db: Session) -> dict[str, Any]:
     from app.agent.redflags import red_flags
-    from app.api.routes import get_watchlist
     from app.data.analysis import close_series
+    from app.portfolio import holding_symbols, tracked_symbols
     facts: dict[str, Any] = {}
     missing: list[str] = []
     rows = scr.universe(db)
@@ -97,13 +97,15 @@ def briefing_pack(db: Session) -> dict[str, Any]:
         facts[f"sector.worst{i + 1}.name"], facts[f"sector.worst{i + 1}.ret_21d"] = r["sector"], round(r["ret_21d"], 4)
     if not sec:
         missing.append("sector returns")
-    watch = get_watchlist(db)[:15]
+    owned = set(holding_symbols(db))
+    watch = tracked_symbols(db)[:20]
     n_flagged = 0
     for sym in watch:
         c = close_series(db, sym)
         if c is not None and len(c) > 6:
             facts[f"watch.{sym}.ret_1d"] = round(float(c.iloc[-1] / c.iloc[-2] - 1), 4)
             facts[f"watch.{sym}.ret_5d"] = round(float(c.iloc[-1] / c.iloc[-6] - 1), 4)
+            facts[f"watch.{sym}.owned"] = sym in owned
         fl = [f for f in red_flags(db, sym)["flags"] if f["severity"] in ("high", "medium")]
         if fl:
             n_flagged += 1

@@ -53,6 +53,41 @@ def parse_candles(rows: list[list]) -> pd.DataFrame:
     return df.astype(float)[["open", "high", "low", "close", "adj_close", "volume"]]
 
 
+EQ_SUFFIX = ("-EQ", "-BE", "-BL", "-BZ", "-SM", "-ST", "-IL")
+
+
+def normalize_holdings(rows: list[dict]) -> list[dict]:
+    """Angel One holding rows -> {symbol, exchange, isin, qty, avg_price, ltp}. 'RELIANCE-EQ' becomes 'RELIANCE'.
+    BSE-only rows are kept as '<tradingsymbol>.BO' (best effort). Rows with no quantity are dropped; duplicates are merged."""
+    out: dict[str, dict] = {}
+    for r in rows:
+        try:
+            qty = float(r.get("quantity") or 0) or float(r.get("t1quantity") or 0) + float(r.get("realisedquantity") or 0)
+            avg = float(r.get("averageprice") or 0)
+        except (TypeError, ValueError):
+            continue
+        ts = str(r.get("tradingsymbol") or "").strip().upper()
+        if qty <= 0 or not ts:
+            continue
+        exch = str(r.get("exchange") or "NSE").upper()
+        base = ts
+        for suf in EQ_SUFFIX:
+            if base.endswith(suf):
+                base = base[: -len(suf)]
+                break
+        sym = base if exch == "NSE" else f"{base}.BO"
+        ltp = r.get("ltp")
+        cur = out.get(sym)
+        if cur:                                         # same stock listed twice (for example T1 + settled): merge with weighted average
+            tot = cur["qty"] + qty
+            cur["avg_price"] = (cur["avg_price"] * cur["qty"] + avg * qty) / tot
+            cur["qty"] = tot
+        else:
+            out[sym] = {"symbol": sym, "tradingsymbol": ts, "exchange": exch, "isin": str(r.get("isin") or ""), "qty": qty, "avg_price": avg,
+                        "ltp": float(ltp) if ltp not in (None, "") else None}
+    return list(out.values())
+
+
 class ScripMaster:
     """symbol -> (exchange, token) from OpenAPIScripMaster.json, cached on disk for a day."""
 
@@ -161,6 +196,31 @@ class AngelOneProvider(MarketDataProvider):
                 continue
             return self._check(r)
         raise ProviderError("angelone auth failed")
+
+    async def _get(self, path: str) -> dict:
+        await self._ensure_session()
+        for attempt in (0, 1):
+            try:
+                r = await self.client.get(f"{BASE}{path}", headers=self._headers())
+            except httpx.HTTPError as e:
+                raise ProviderError(f"angelone network error: {e}") from e
+            if r.status_code == 401 and attempt == 0:
+                self._jwt = None
+                await self.login()
+                continue
+            return self._check(r)
+        raise ProviderError("angelone auth failed")
+
+    async def fetch_holdings(self) -> list[dict]:
+        """Your demat holdings (read-only). Tries the detailed endpoint first, then the plain one."""
+        try:
+            j = await self._get("/rest/secure/angelbroking/portfolio/v1/getAllHolding")
+            data = j.get("data") or {}
+            rows = data.get("holdings") if isinstance(data, dict) else data
+        except ProviderError:
+            j = await self._get("/rest/secure/angelbroking/portfolio/v1/getHolding")
+            rows = j.get("data")
+        return normalize_holdings(rows or [])
 
     async def fetch_ohlcv(self, symbol: str, interval: str, start: pd.Timestamp,
                           end: pd.Timestamp) -> pd.DataFrame:

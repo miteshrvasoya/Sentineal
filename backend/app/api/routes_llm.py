@@ -284,9 +284,9 @@ def redflags(symbol: str, db: Session = Depends(get_session)) -> dict:
 @router.get("/redflags")
 def redflags_watchlist(db: Session = Depends(get_session)) -> list[dict]:
     from app.agent.redflags import red_flags
-    from app.api.routes import get_watchlist
+    from app.portfolio import tracked_symbols
     rows = []
-    for sym in get_watchlist(db):
+    for sym in tracked_symbols(db):
         r = red_flags(db, sym)
         rows.append({"symbol": sym, "count": r["count"], "high": sum(f["severity"] == "high" for f in r["flags"]), "medium": sum(f["severity"] == "medium" for f in r["flags"]),
                      "top": r["flags"][0]["message"] if r["flags"] else None})

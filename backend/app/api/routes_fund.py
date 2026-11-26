@@ -11,7 +11,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.api.routes import _known, get_watchlist
+from app.api.routes import _known
 from app.data.analysis import close_series, fundamentals_view, scorecard_for
 from app.data.db import get_session
 from app.data.models import FundamentalsSnapshot
@@ -81,7 +81,7 @@ def _series(s: pd.Series, n: int = 500) -> list[float | None]:
 
 @router.get("/risk/correlation")
 def correlation(symbols: str | None = None, days: int = Query(252, ge=30, le=1500), db: Session = Depends(get_session)) -> dict:
-    syms = [_known(s) for s in symbols.split(",")] if symbols else get_watchlist(db)
+    syms = [_known(s) for s in symbols.split(",")] if symbols else _tracked(db)
     closes = {s: c for s in syms if (c := close_series(db, s)) is not None}
     if len(closes) < 2:
         raise HTTPException(404, "Need stored prices for at least two symbols.")
@@ -125,6 +125,11 @@ def get_scorecard(symbol: str, db: Session = Depends(get_session)) -> dict:
     return clean(s)
 
 
+def _tracked(db: Session) -> list[str]:
+    from app.portfolio import tracked_symbols
+    return tracked_symbols(db)
+
+
 _summary_cache: dict[str, tuple[float, Any]] = {}
 
 
@@ -132,13 +137,15 @@ _summary_cache: dict[str, tuple[float, Any]] = {}
 def watchlist_summary(db: Session = Depends(get_session)) -> list[dict]:
     """Per watchlist symbol: last close, day change, 30-bar sparkline and the scorecard badge (from stored data only)."""
     out = []
-    for sym in get_watchlist(db):
+    from app.portfolio import holding_symbols
+    owned = set(holding_symbols(db))
+    for sym in _tracked(db):
         hit = _summary_cache.get(sym)
         if hit and time.time() - hit[0] < 60:
-            out.append(hit[1])
+            out.append({**hit[1], "held": sym in owned})           # ownership is never served from the cache
             continue
         c = close_series(db, sym, adjusted=False)
-        row: dict[str, Any] = {"symbol": sym, "last": None, "change_pct": None, "spark": [], "score": None, "label": None}
+        row: dict[str, Any] = {"symbol": sym, "last": None, "change_pct": None, "spark": [], "score": None, "label": None, "held": sym in owned}
         if c is not None and len(c) >= 2:
             row.update(last=round(float(c.iloc[-1]), 2), change_pct=round(float(c.iloc[-1] / c.iloc[-2] - 1) * 100, 2),
                        spark=[round(float(x), 2) for x in c.iloc[-30:]])

@@ -1,6 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import AngelOneCard from "@/components/AngelOneCard";
 import { api, type LlmUsage } from "@/lib/api";
 
 const ts = (t: number | null) => (t ? new Date(t * 1000).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "never");
@@ -116,6 +117,7 @@ export default function Settings() {
   return (
     <div className="space-y-8">
       <OpenRouterPanel />
+      <AngelOneCard />
       <Scheduler />
       <SafetyEval />
       <section data-tour="providers">

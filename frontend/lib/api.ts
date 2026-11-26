@@ -112,6 +112,10 @@ export const api = {
   redFlags: (symbol: string) => get<RedFlags>(`/redflags/${encodeURIComponent(symbol)}`),
   redFlagsAll: () => get<RedFlagRow[]>("/redflags"),
   safetyEval: () => get<SafetyEval>("/llm/eval/safety"),
+  brokerStatus: () => get<BrokerStatus>("/broker/angelone/status"),
+  brokerSync: () => post<BrokerSync>("/broker/angelone/sync"),
+  brokerAdopt: (date: string) => postJson<{ added: number }>("/broker/angelone/adopt", { date }),
+  holdingsReview: () => get<{ holdings: HoldingReview[]; compared_with: number; disclaimer: string }>("/discover/holdings"),
   portfolio: () => get<Portfolio>("/portfolio"),
   pfHistory: () => get<PfHistory>("/portfolio/history"),
   pfTxns: () => get<PfTxn[]>("/portfolio/transactions"),
@@ -234,7 +238,7 @@ export type Risk = {
     beta: (number | null)[] | null; correlation: (number | null)[] | null };
 };
 export type Corr = { symbols: string[]; matrix: (number | null)[][]; days: number };
-export type WatchRow = { symbol: string; last: number | null; change_pct: number | null; spark: number[]; score: number | null; label: string | null };
+export type WatchRow = { held?: boolean; symbol: string; last: number | null; change_pct: number | null; spark: number[]; score: number | null; label: string | null };
 
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
@@ -381,7 +385,7 @@ export type SafetyEval = {
 };
 
 export type PfPosition = { symbol: string; name: string; sector: string; qty: number; avg_cost: number; invested: number; price: number | null; price_as_of: string | null;
-  value: number | null; first_buy: string | null; realised: number; pl?: number; pl_pct?: number | null; day_change?: number; day_change_pct?: number | null; stale_days: number | null; weight: number | null };
+  value: number | null; first_buy: string | null; realised: number; source?: "records" | "angelone"; needs_date?: boolean; pl?: number; pl_pct?: number | null; day_change?: number; day_change_pct?: number | null; stale_days: number | null; weight: number | null };
 export type PfCheck = { level: "high" | "medium" | "info" | "good"; title: string; text: string; symbols: string[] };
 export type Portfolio = {
   empty: boolean;
@@ -389,15 +393,21 @@ export type Portfolio = {
     annual_return: number | null; annual_return_note: string | null; holdings: number; unpriced: string[] };
   positions: PfPosition[]; allocation: { by_sector: { sector: string; weight: number; value: number }[] };
   closed: { symbol: string; name: string; realised: number; bought: number; sold: number }[]; checkup: PfCheck[];
+  broker?: { connected: boolean; synced_at: number | null; count: number; only: string[]; mismatches: { symbol: string; records_qty: number; broker_qty: number }[] };
 };
 export type PfTxn = { id: number; symbol: string; side: "buy" | "sell"; qty: number; price: number; fees: number; date: string; note: string; amount: number };
 export type PfTxnIn = { symbol: string; side: "buy" | "sell"; qty: number; price: number; date: string; fees?: number; note?: string };
 export type PfHistory = { points: { date: string; value: number; put_in: number }[]; note?: string };
-export type Idea = { symbol: string; sector: string; horizon: "short" | "long"; score: number | null; label: string; ranked: boolean; confidence: number; checks: string; risk: string;
+export type Idea = { owned?: boolean; symbol: string; sector: string; horizon: "short" | "long"; score: number | null; label: string; ranked: boolean; confidence: number; checks: string; risk: string;
   why: string[]; watch_out: string[]; change_my_mind: string[]; numbers: Record<string, number | null> };
 export type IdeasOut = { horizon: "short" | "long"; horizon_text: string; ideas: Idea[]; considered: number; universe: number; unranked: number; disclaimer: string; sectors: string[] };
 export type DiscoverStatus = { popular: number; loaded: number; with_company_numbers: number; stored_total: number; enough_to_compare: boolean; hint: string };
-export type StockView = { symbol: string; short: Idea; long: Idea; compared_with: number; disclaimer: string };
+export type StockView = { owned?: boolean; symbol: string; short: Idea; long: Idea; compared_with: number; disclaimer: string };
 export type JobOut = { id: string; kind: string; status: "queued" | "running" | "done" | "failed"; progress: number; error: string | null; result: Record<string, unknown> | null };
 export type ORModels = { ok: boolean; error?: string; ranked: { id: string; name: string; score: number; context: number | null; reasons: string[]; structured: boolean }[]; defaults?: string[];
   current: string | null; key_set: boolean; recommended?: string | null; note?: string };
+
+export type BrokerStatus = { configured: boolean; missing: string[]; steps: string[]; holdings: number; last_sync: number | null; read_only: boolean };
+export type BrokerSync = { ok: boolean; configured: boolean; message?: string; missing?: string[]; steps?: string[]; count?: number; added?: string[]; removed?: string[]; changed?: string[]; synced_at?: number;
+  data?: { price_problems: string[]; financials_missing: string[] } };
+export type HoldingReview = { symbol: string; available: boolean; short?: Idea; long?: Idea };
